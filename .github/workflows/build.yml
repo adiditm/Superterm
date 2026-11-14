@@ -1,0 +1,68 @@
+name: Build Superterm (Windows, macOS, Linux)
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Superterm-Windows-x64
+          path: target/release/superterm.exe
+
+  build-macos:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        target: [ aarch64-apple-darwin, x86_64-apple-darwin ]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - run: cargo build --release --target ${{ matrix.target }}
+      - name: Package macOS .app bundle
+        run: |
+          mkdir -p Superterm.app/Contents/MacOS
+          cp target/${{ matrix.target }}/release/superterm Superterm.app/Contents/MacOS/Superterm
+          cat << 'EOF' > Superterm.app/Contents/Info.plist
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleExecutable</key><string>Superterm</string>
+            <key>CFBundleIdentifier</key><string>com.superterm.app</string>
+            <key>CFBundleName</key><string>Superterm</string>
+            <key>CFBundleVersion</key><string>0.1.0</string>
+            <key>CFBundlePackageType</key><string>APPL</string>
+            <key>NSHighResolutionCapable</key><true/>
+          </dict>
+          </plist>
+          EOF
+          zip -r Superterm-macOS-${{ matrix.target }}.zip Superterm.app
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Superterm-macOS-${{ matrix.target }}
+          path: Superterm-macOS-${{ matrix.target }}.zip
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Linux GUI dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev libssl-dev libgtk-3-dev
+      - run: cargo build --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Superterm-Linux-x64
+          path: target/release/superterm

@@ -1,0 +1,44 @@
+[package]
+name = "superterm"
+version = "0.1.0"
+edition = "2021"
+authors = ["Superterm Team"]
+description = "Pure Native Rust SSH Client & Tunneling Vault (No Web Tech, 100% Native Rust GUI)"
+
+[dependencies]
+eframe = { version = "0.29", default-features = false, features = ["default_fonts", "glow"] }
+egui = "0.29"
+tokio = { version = "1.38", features = ["rt-multi-thread", "net", "io-util", "sync", "time", "macros"] }
+async-trait = "0.1"
+russh = "0.45"
+russh-keys = "0.45"
+ssh-key = { version = "0.6.7", features = ["ed25519", "rsa", "rand_core", "encryption"] }
+vt100 = "0.18"
+portable-pty = { version = "0.9", default-features = false }
+# SQL Client. Plain "runtime-tokio" leaves TLS out entirely, which avoids
+# `ring`'s C build step - this toolchain has no C compiler.
+sqlx = { version = "0.8", default-features = false, features = [
+    "runtime-tokio",
+    "mysql",
+    "postgres",
+    "chrono",
+] }
+arboard = { version = "3", default-features = false }
+aes-gcm = "0.10"
+argon2 = "0.5"
+rand = "0.8"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.8", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+dirs = "5.0"
+parking_lot = "0.12"
+anyhow = "1.0"
+thiserror = "1.0"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
