@@ -1025,6 +1025,16 @@ impl<'a> MenuEdit<'a> {
 
     /// Draw the field; returns true when the text changed.
     pub fn show(self, ui: &mut egui::Ui, text: &mut String) -> bool {
+        self.show_response(ui, text).1
+    }
+
+    /// Draw the field and hand back the `Response` too, for callers that need
+    /// focus handling or Enter-to-submit.
+    pub fn show_response(
+        self,
+        ui: &mut egui::Ui,
+        text: &mut String,
+    ) -> (egui::Response, bool) {
         text_edit_with_menu(
             ui,
             text,
@@ -1050,7 +1060,7 @@ fn text_edit_with_menu(
     rows: usize,
     monospace: bool,
     password: bool,
-) -> bool {
+) -> (egui::Response, bool) {
     let mut builder = if multiline {
         egui::TextEdit::multiline(text)
     } else {
@@ -1070,36 +1080,62 @@ fn text_edit_with_menu(
         builder = builder.password(true);
     }
 
+    // Right-clicking destroys the selection before any menu can read it:
+    // egui's `pointer_interaction` collapses the range on *any* pointer
+    // press, and that includes the secondary button. Nothing can be
+    // recovered after the fact, so the last non-empty selection is recorded
+    // every frame and used when the menu opens.
+    let remembered_id = ui.id().with(("menu_edit_sel", id_salt));
+
     // `show` is used instead of `ui.add` so the cursor range comes back.
     let out = builder.show(ui);
     let mut changed = out.response.changed();
 
-    // `out.cursor_range` is only populated while the field holds focus, and
-    // opening a context menu takes focus away - which is why right-clicking a
-    // selection used to report nothing selected. The stored cursor state
-    // survives the focus change, so read that instead and fall back to the
-    // live range only when the stored one is absent.
-    let range = out
+    let live = out
         .state
         .cursor
         .range(&out.galley)
-        .or(out.cursor_range);
+        .or(out.cursor_range)
+        .map(|range| {
+            let [min, max] = range.sorted_cursors();
+            let a = byte_index_from_char_index(text, min.ccursor.index);
+            let b = byte_index_from_char_index(text, max.ccursor.index);
+            (a, b)
+        });
 
-    // Byte offsets of the current selection, empty when nothing is selected.
-    let selection: Option<(usize, usize)> = range.map(|range| {
-        let [min, max] = range.sorted_cursors();
-        let a = byte_index_from_char_index(text, min.ccursor.index);
-        let b = byte_index_from_char_index(text, max.ccursor.index);
-        (a, b)
-    });
-    let has_selection = selection.map(|(a, b)| a != b).unwrap_or(false);
+    // Only a real selection is worth remembering; a bare caret is not.
+    let secondary_down = ui.input(|i| i.pointer.secondary_down());
+    if let Some((a, b)) = live {
+        if a != b && !secondary_down {
+            ui.ctx()
+                .memory_mut(|m| m.data.insert_temp(remembered_id, (a, b)));
+        }
+    }
 
-    // Caret position, used as the insertion point when nothing is selected.
-    let caret = selection.map(|(a, _)| a).unwrap_or(text.len());
+    let remembered: Option<(usize, usize)> = ui
+        .ctx()
+        .memory(|m| m.data.get_temp::<(usize, usize)>(remembered_id));
+
+    // Prefer the live range, but fall back to what was saved before the
+    // right-click wiped it. Guard the bounds: the text may have changed
+    // since, and stale offsets would panic when sliced.
+    let selection: Option<(usize, usize)> = live
+        .filter(|(a, b)| a != b)
+        .or(remembered)
+        .filter(|&(a, b)| a < b && b <= text.len() && text.is_char_boundary(a) && text.is_char_boundary(b));
+
+    let has_selection = selection.is_some();
+
+    // Insertion point for a paste with no selection. Taken from the live
+    // caret, not the remembered selection, so it follows the cursor.
+    let caret = live.map(|(a, _)| a).unwrap_or(text.len());
 
     let edit_id = out.response.id;
     let mut new_text: Option<(String, usize)> = None;
     let mut select_all = false;
+
+    // `context_menu` consumes the response, so keep a copy to return.
+    let response = out.response.clone();
 
     out.response.context_menu(|ui| {
         ui.set_min_width(150.0_f32);
@@ -1182,7 +1218,15 @@ fn text_edit_with_menu(
         *text = t;
         changed = true;
 
-        let char_idx = text[..caret_byte.min(text.len())].chars().count();
+        // The remembered selection describes text that no longer exists.
+        ui.ctx()
+            .memory_mut(|m| m.data.remove::<(usize, usize)>(remembered_id));
+
+        let mut at = caret_byte.min(text.len());
+        while at > 0 && !text.is_char_boundary(at) {
+            at -= 1;
+        }
+        let char_idx = text[..at].chars().count();
         if let Some(mut state) = egui::TextEdit::load_state(ui.ctx(), edit_id) {
             state.cursor.set_char_range(Some(egui::text::CCursorRange::one(
                 egui::text::CCursor::new(char_idx),
@@ -1193,6 +1237,10 @@ fn text_edit_with_menu(
     }
 
     if select_all {
+        let full = (0usize, text.len());
+        ui.ctx()
+            .memory_mut(|m| m.data.insert_temp(remembered_id, full));
+
         if let Some(mut state) = egui::TextEdit::load_state(ui.ctx(), edit_id) {
             state.cursor.set_char_range(Some(egui::text::CCursorRange::two(
                 egui::text::CCursor::new(0),
@@ -1203,7 +1251,7 @@ fn text_edit_with_menu(
         ui.ctx().memory_mut(|m| m.request_focus(edit_id));
     }
 
-    changed
+    (response, changed)
 }
 
 /// Convert a char index into a byte index, which is what `String` slicing needs.

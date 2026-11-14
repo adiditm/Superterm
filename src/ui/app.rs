@@ -12,7 +12,7 @@ use eframe::glow;
 use crate::ui::terminal::{render_terminal_viewport, TerminalEmulator};
 use crate::ui::tools_view::{
     draw_nav_icon, draw_shell_icon, draw_tool_icon, render_sql_client, render_tool_workspace,
-    SqlSession, ToolsState,
+    MenuEdit, SqlSession, ToolsState,
 };
 use eframe::egui::{self, Color32, RichText, Rounding, ScrollArea, Stroke, Vec2};
 use std::collections::{HashMap, HashSet};
@@ -2202,11 +2202,10 @@ impl eframe::App for SupertermNativeApp {
                     return;
                 }
 
-                ui.add(
-                    egui::TextEdit::singleline(&mut self.search_query)
-                        .hint_text("Search host, IP, or tag...")
-                        .desired_width(f32::INFINITY),
-                );
+                MenuEdit::single("search_query")
+    .hint("Search host, IP, or tag...")
+    .width(f32::INFINITY)
+    .show(ui, &mut self.search_query);
 
                 ui.add_space(6.0_f32);
 
@@ -3474,12 +3473,11 @@ impl eframe::App for SupertermNativeApp {
                     ui.label(RichText::new(format!("Enter SSH password for {}", host_info)).color(text_primary));
                     ui.add_space(6.0_f32);
 
-                    let pwd_res = ui.add(
-                        egui::TextEdit::singleline(&mut self.password_prompt_input)
-                            .password(true)
-                            .hint_text("SSH Password...")
-                            .desired_width(f32::INFINITY),
-                    );
+                    let (pwd_res, _) = MenuEdit::single("password_prompt_input")
+                        .hint("SSH Password...")
+                        .width(f32::INFINITY)
+                        .password()
+                        .show_response(ui, &mut self.password_prompt_input);
                     pwd_res.request_focus();
 
                     ui.checkbox(&mut self.password_prompt_save, "Save password in local vault");
@@ -3532,9 +3530,9 @@ impl eframe::App for SupertermNativeApp {
                 .default_size(Vec2::new(340.0_f32, 120.0_f32))
                 .show(ctx, |ui| {
                     ui.label(RichText::new("New Host Name:").color(text_primary));
-                    let res = ui.add(
-                        egui::TextEdit::singleline(&mut ren_name).desired_width(f32::INFINITY),
-                    );
+                    let (res, _) = MenuEdit::single("ren_name")
+                        .width(f32::INFINITY)
+                        .show_response(ui, &mut ren_name);
                     res.request_focus();
                     let enter_save = res.lost_focus() && ctx.input(|i| i.key_pressed(egui::Key::Enter));
 
@@ -3591,11 +3589,10 @@ impl eframe::App for SupertermNativeApp {
                     ScrollArea::vertical()
                         .max_height(220.0_f32)
                         .show(ui, |ui| {
-                            ui.add(
-                                egui::TextEdit::multiline(&mut exp_json)
-                                    .font(egui::TextStyle::Monospace)
-                                    .desired_width(f32::INFINITY),
-                            );
+                            MenuEdit::multi("exp_json", 6)
+    .width(f32::INFINITY)
+    .monospace()
+    .show(ui, &mut exp_json);
                         });
                     ui.add_space(8.0_f32);
                     ui.horizontal(|ui| {
@@ -3795,9 +3792,9 @@ impl eframe::App for SupertermNativeApp {
                 .default_size(Vec2::new(340.0_f32, 120.0_f32))
                 .show(ctx, |ui| {
                     ui.label(RichText::new("New Folder Name:").color(text_primary));
-                    let res = ui.add(
-                        egui::TextEdit::singleline(&mut self.folder_rename_buffer).desired_width(f32::INFINITY),
-                    );
+                    let (res, _) = MenuEdit::single("folder_rename_buffer")
+                        .width(f32::INFINITY)
+                        .show_response(ui, &mut self.folder_rename_buffer);
                     res.request_focus();
                     let enter_save = res.lost_focus() && ctx.input(|i| i.key_pressed(egui::Key::Enter));
 
@@ -4009,11 +4006,9 @@ impl eframe::App for SupertermNativeApp {
 
                                 ui.add_space(8.0_f32);
                                 ui.label(RichText::new("Name").color(text_secondary).size(11.5_f32));
-                                ui.add(
-                                    egui::TextEdit::singleline(&mut self.new_host_name)
-                                        .id_salt("host_name_edit")
-                                        .desired_width(f32::INFINITY),
-                                );
+                                MenuEdit::single("host_name_edit")
+    .width(f32::INFINITY)
+    .show(ui, &mut self.new_host_name);
 
                                 ui.add_space(8.0_f32);
                                 ui.horizontal(|ui| {
@@ -4024,32 +4019,26 @@ impl eframe::App for SupertermNativeApp {
                                         ui.label(
                                             RichText::new("Host").color(text_secondary).size(11.5_f32),
                                         );
-                                        ui.add(
-                                            egui::TextEdit::singleline(&mut self.new_host_ip)
-                                                .id_salt("host_ip_edit")
-                                                .desired_width(f32::INFINITY),
-                                        );
+                                        MenuEdit::single("host_ip_edit")
+    .width(f32::INFINITY)
+    .show(ui, &mut self.new_host_ip);
                                     });
                                     ui.vertical(|ui| {
                                         ui.set_width(port_w);
                                         ui.label(
                                             RichText::new("Port").color(text_secondary).size(11.5_f32),
                                         );
-                                        ui.add(
-                                            egui::TextEdit::singleline(&mut self.new_host_port)
-                                                .id_salt("host_port_edit")
-                                                .desired_width(f32::INFINITY),
-                                        );
+                                        MenuEdit::single("host_port_edit")
+    .width(f32::INFINITY)
+    .show(ui, &mut self.new_host_port);
                                     });
                                 });
 
                                 ui.add_space(8.0_f32);
                                 ui.label(RichText::new("Username").color(text_secondary).size(11.5_f32));
-                                ui.add(
-                                    egui::TextEdit::singleline(&mut self.new_host_user)
-                                        .id_salt("host_user_edit")
-                                        .desired_width(f32::INFINITY),
-                                );
+                                MenuEdit::single("host_user_edit")
+    .width(f32::INFINITY)
+    .show(ui, &mut self.new_host_user);
 
                                 ui.add_space(8.0_f32);
                                 ui.label(RichText::new("Folder").color(text_secondary).size(11.5_f32));
@@ -4069,12 +4058,10 @@ impl eframe::App for SupertermNativeApp {
                                                 }
                                             }
                                         });
-                                    ui.add(
-                                        egui::TextEdit::singleline(&mut self.new_host_folder)
-                                            .id_salt("host_folder_edit")
-                                            .hint_text("or type new folder name...")
-                                            .desired_width(f32::INFINITY),
-                                    );
+                                    MenuEdit::single("host_folder_edit")
+    .hint("or type new folder name...")
+    .width(f32::INFINITY)
+    .show(ui, &mut self.new_host_folder);
                                 });
 
                                 // ---- Authentication group ----
@@ -4133,15 +4120,17 @@ impl eframe::App for SupertermNativeApp {
                                                     // Constant width: measuring here would let the
                                                     // field grow the dialog frame after frame.
                                                     let eye_w = 44.0_f32;
-                                                    ui.add(
-                                                        egui::TextEdit::singleline(
-                                                            &mut self.new_host_password,
-                                                        )
-                                                        .password(!self.new_host_reveal_password)
-                                                        .desired_width(
-                                                            full_w - eye_w - 28.0_f32,
-                                                        ),
-                                                    );
+                                                    // Revealing the password
+                                                    // also restores Copy/Cut
+                                                    // in the context menu.
+                                                    let mut pw = MenuEdit::single(
+                                                        "host_password_edit",
+                                                    )
+                                                    .width(full_w - eye_w - 28.0_f32);
+                                                    if !self.new_host_reveal_password {
+                                                        pw = pw.password();
+                                                    }
+                                                    pw.show(ui, &mut self.new_host_password);
                                                     if ui
                                                         .add(
                                                             egui::Button::new(
@@ -4177,25 +4166,19 @@ impl eframe::App for SupertermNativeApp {
                                                         .color(text_secondary)
                                                         .size(11.5_f32),
                                                 );
-                                                ui.add(
-                                                    egui::TextEdit::singleline(
-                                                        &mut self.new_host_key_path,
-                                                    )
-                                                    .desired_width(f32::INFINITY),
-                                                );
+                                                MenuEdit::single("new_host_key_path_")
+    .width(f32::INFINITY)
+    .show(ui, &mut self.new_host_key_path,);
                                                 ui.add_space(4.0_f32);
                                                 ui.label(
                                                     RichText::new("Key passphrase (if any)")
                                                         .color(text_secondary)
                                                         .size(11.5_f32),
                                                 );
-                                                ui.add(
-                                                    egui::TextEdit::singleline(
-                                                        &mut self.new_host_passphrase,
-                                                    )
-                                                    .password(true)
-                                                    .desired_width(f32::INFINITY),
-                                                );
+                                                MenuEdit::single("new_host_passphrase_")
+    .width(f32::INFINITY)
+    .password()
+    .show(ui, &mut self.new_host_passphrase,);
                                             }
                                             "vault" => {
                                                 ui.label(
@@ -4262,12 +4245,9 @@ impl eframe::App for SupertermNativeApp {
                                                             .color(text_secondary)
                                                             .size(11.5_f32),
                                                     );
-                                                    ui.add(
-                                                        egui::TextEdit::singleline(
-                                                            &mut self.new_host_jump_host,
-                                                        )
-                                                        .desired_width(f32::INFINITY),
-                                                    );
+                                                    MenuEdit::single("new_host_jump_host_")
+    .width(f32::INFINITY)
+    .show(ui, &mut self.new_host_jump_host,);
                                                 });
                                                 ui.vertical(|ui| {
                                                     ui.set_width(port_w);
@@ -4276,12 +4256,9 @@ impl eframe::App for SupertermNativeApp {
                                                             .color(text_secondary)
                                                             .size(11.5_f32),
                                                     );
-                                                    ui.add(
-                                                        egui::TextEdit::singleline(
-                                                            &mut self.new_host_jump_port,
-                                                        )
-                                                        .desired_width(f32::INFINITY),
-                                                    );
+                                                    MenuEdit::single("new_host_jump_port_")
+    .width(f32::INFINITY)
+    .show(ui, &mut self.new_host_jump_port,);
                                                 });
                                             });
                                             ui.add_space(6.0_f32);
@@ -4290,12 +4267,9 @@ impl eframe::App for SupertermNativeApp {
                                                     .color(text_secondary)
                                                     .size(11.5_f32),
                                             );
-                                            ui.add(
-                                                egui::TextEdit::singleline(
-                                                    &mut self.new_host_jump_user,
-                                                )
-                                                .desired_width(f32::INFINITY),
-                                            );
+                                            MenuEdit::single("new_host_jump_user_")
+    .width(f32::INFINITY)
+    .show(ui, &mut self.new_host_jump_user,);
                                         }
                                     });
 
@@ -4321,12 +4295,11 @@ impl eframe::App for SupertermNativeApp {
                                                 .color(text_secondary)
                                                 .size(11.5_f32),
                                         );
-                                        ui.add(
-                                            egui::TextEdit::singleline(&mut self.new_host_startup_cmd)
-                                                .hint_text("e.g. tmux attach || tmux")
-                                                .font(egui::TextStyle::Monospace)
-                                                .desired_width(f32::INFINITY),
-                                        );
+                                        MenuEdit::single("new_host_startup_cmd")
+    .hint("e.g. tmux attach || tmux")
+    .width(f32::INFINITY)
+    .monospace()
+    .show(ui, &mut self.new_host_startup_cmd);
                                         ui.label(
                                             RichText::new("Sent once the shell is ready.")
                                                 .color(text_secondary)
@@ -4339,12 +4312,11 @@ impl eframe::App for SupertermNativeApp {
                                                 .color(text_secondary)
                                                 .size(11.5_f32),
                                         );
-                                        ui.add(
-                                            egui::TextEdit::singleline(&mut self.new_host_sftp_dir)
-                                                .hint_text("default: home directory")
-                                                .font(egui::TextStyle::Monospace)
-                                                .desired_width(f32::INFINITY),
-                                        );
+                                        MenuEdit::single("new_host_sftp_dir")
+    .hint("default: home directory")
+    .width(f32::INFINITY)
+    .monospace()
+    .show(ui, &mut self.new_host_sftp_dir);
 
                                         ui.add_space(8.0_f32);
                                         ui.label(
@@ -4352,10 +4324,9 @@ impl eframe::App for SupertermNativeApp {
                                                 .color(text_secondary)
                                                 .size(11.5_f32),
                                         );
-                                        ui.add(
-                                            egui::TextEdit::singleline(&mut self.new_host_keepalive)
-                                                .desired_width(120.0_f32),
-                                        );
+                                        MenuEdit::single("new_host_keepalive")
+    .width(120.0_f32)
+    .show(ui, &mut self.new_host_keepalive);
                                         ui.label(
                                             RichText::new("0 disables")
                                                 .color(text_secondary)
@@ -4563,7 +4534,10 @@ impl eframe::App for SupertermNativeApp {
                     ui.separator();
 
                     ui.label(RichText::new("Tunnel Name:").color(text_primary));
-                    ui.add(egui::TextEdit::singleline(&mut self.new_tunnel_name).hint_text("e.g. Postgres DB / Browser SOCKS5").desired_width(f32::INFINITY));
+                    MenuEdit::single("new_tunnel_name")
+    .hint("e.g. Postgres DB / Browser SOCKS5")
+    .width(f32::INFINITY)
+    .show(ui, &mut self.new_tunnel_name);
 
                     ui.label(RichText::new("Tunnel Type:").color(text_primary));
                     ui.horizontal(|ui| {
@@ -4579,17 +4553,25 @@ impl eframe::App for SupertermNativeApp {
 
                     ui.horizontal(|ui| {
                         ui.label(RichText::new("Bind IP:").color(text_primary));
-                        ui.add(egui::TextEdit::singleline(&mut self.new_tunnel_bind_host).desired_width(110.0_f32));
+                        MenuEdit::single("new_tunnel_bind_host")
+    .width(110.0_f32)
+    .show(ui, &mut self.new_tunnel_bind_host);
                         ui.label(RichText::new("Port:").color(text_primary));
-                        ui.add(egui::TextEdit::singleline(&mut self.new_tunnel_bind_port).desired_width(60.0_f32));
+                        MenuEdit::single("new_tunnel_bind_port")
+    .width(60.0_f32)
+    .show(ui, &mut self.new_tunnel_bind_port);
                     });
 
                     if self.new_tunnel_type != "dynamic" {
                         ui.horizontal(|ui| {
                             ui.label(RichText::new("Remote IP:").color(text_primary));
-                            ui.add(egui::TextEdit::singleline(&mut self.new_tunnel_remote_host).desired_width(100.0_f32));
+                            MenuEdit::single("new_tunnel_remote_host")
+    .width(100.0_f32)
+    .show(ui, &mut self.new_tunnel_remote_host);
                             ui.label(RichText::new("Port:").color(text_primary));
-                            ui.add(egui::TextEdit::singleline(&mut self.new_tunnel_remote_port).desired_width(60.0_f32));
+                            MenuEdit::single("new_tunnel_remote_port")
+    .width(60.0_f32)
+    .show(ui, &mut self.new_tunnel_remote_port);
                         });
                     }
 
@@ -4831,11 +4813,10 @@ impl eframe::App for SupertermNativeApp {
 
                     ui.label(RichText::new("Sync Email (Google Account):").color(text_primary).strong());
                     ui.horizontal(|ui| {
-                        ui.add(
-                            egui::TextEdit::singleline(&mut self.sync_email_input)
-                                .hint_text("you@gmail.com")
-                                .desired_width(270.0_f32),
-                        );
+                        MenuEdit::single("sync_email_input")
+    .hint("you@gmail.com")
+    .width(270.0_f32)
+    .show(ui, &mut self.sync_email_input);
                         if ui
                             .add(egui::Button::new(RichText::new("Save Email").color(Color32::WHITE)).fill(Color32::from_rgb(124, 58, 237)))
                             .clicked()
@@ -4858,15 +4839,16 @@ impl eframe::App for SupertermNativeApp {
 
                     ui.label(RichText::new("Encrypted Portable Backup (.stvault):").color(text_primary).strong());
                     ui.label(RichText::new("Vault File Path (e.g. inside your Google Drive / OneDrive folder):").size(11.0_f32).color(text_secondary));
-                    ui.add(egui::TextEdit::singleline(&mut self.sync_file_path).desired_width(f32::INFINITY));
+                    MenuEdit::single("sync_file_path")
+    .width(f32::INFINITY)
+    .show(ui, &mut self.sync_file_path);
 
                     ui.label(RichText::new("Master Encryption Password:").size(11.0_f32).color(text_secondary));
-                    ui.add(
-                        egui::TextEdit::singleline(&mut self.sync_master_password)
-                            .password(true)
-                            .hint_text("Enter master password for AES-256-GCM...")
-                            .desired_width(f32::INFINITY),
-                    );
+                    MenuEdit::single("sync_master_password")
+    .hint("Enter master password for AES-256-GCM...")
+    .width(f32::INFINITY)
+    .password()
+    .show(ui, &mut self.sync_master_password);
 
                     ui.add_space(8.0_f32);
                     ui.horizontal(|ui| {
