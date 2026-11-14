@@ -1061,6 +1061,51 @@ fn text_edit_with_menu(
     monospace: bool,
     password: bool,
 ) -> (egui::Response, bool) {
+    // egui collapses a TextEdit's selection on *any* pointer press, and
+    // `any_pressed()` includes the secondary button - so by the time a
+    // context menu is built the selection is already a bare caret.
+    //
+    // Rather than trying to read it afterwards, the previous frame's
+    // selection is kept and, on a right-click, written straight back into
+    // the widget's cursor state. The text stays visibly highlighted and the
+    // menu sees a real selection.
+    //
+    // This runs before the builder borrows `text` mutably.
+    let prev_id = egui::Id::new(("menu_edit_prev_sel", id_salt));
+    let prev: Option<(usize, usize)> = ui
+        .ctx()
+        .memory(|m| m.data.get_temp::<(usize, usize)>(prev_id));
+
+    let edit_id = ui.make_persistent_id(id_salt);
+
+    // The whole right-click gesture must be treated as one event: the press
+    // collapses the range, and the *release* is when the menu opens. Looking
+    // only at the press meant the release frame saw a bare caret and threw
+    // the saved range away just as the menu needed it.
+    let secondary_active = ui.input(|i| {
+        i.pointer.secondary_down()
+            || i.pointer.button_released(egui::PointerButton::Secondary)
+            || i.pointer.button_clicked(egui::PointerButton::Secondary)
+    });
+    let menu_is_open = ui.ctx().memory(|m| m.any_popup_open());
+    let restoring = secondary_active || menu_is_open;
+
+    if restoring {
+        if let Some((a, b)) = prev {
+            if a != b && b <= text.len() && text.is_char_boundary(a) && text.is_char_boundary(b) {
+                let ca = text[..a].chars().count();
+                let cb = text[..b].chars().count();
+                if let Some(mut st) = egui::TextEdit::load_state(ui.ctx(), edit_id) {
+                    st.cursor.set_char_range(Some(egui::text::CCursorRange::two(
+                        egui::text::CCursor::new(ca),
+                        egui::text::CCursor::new(cb),
+                    )));
+                    st.store(ui.ctx(), edit_id);
+                }
+            }
+        }
+    }
+
     let mut builder = if multiline {
         egui::TextEdit::multiline(text)
     } else {
@@ -1080,13 +1125,6 @@ fn text_edit_with_menu(
         builder = builder.password(true);
     }
 
-    // Right-clicking destroys the selection before any menu can read it:
-    // egui's `pointer_interaction` collapses the range on *any* pointer
-    // press, and that includes the secondary button. Nothing can be
-    // recovered after the fact, so the last non-empty selection is recorded
-    // every frame and used when the menu opens.
-    let remembered_id = ui.id().with(("menu_edit_sel", id_salt));
-
     // `show` is used instead of `ui.add` so the cursor range comes back.
     let out = builder.show(ui);
     let mut changed = out.response.changed();
@@ -1103,26 +1141,38 @@ fn text_edit_with_menu(
             (a, b)
         });
 
-    // Only a real selection is worth remembering; a bare caret is not.
-    let secondary_down = ui.input(|i| i.pointer.secondary_down());
-    if let Some((a, b)) = live {
-        if a != b && !secondary_down {
+    // Record this frame's selection for the next one. Skip frames where the
+    // secondary button is involved, so a collapsed range never overwrites
+    // the value being restored.
+    if !restoring {
+        // A plain left-press is the user starting over, so the saved range
+        // goes first. Without this, clicking elsewhere left Cut/Copy enabled
+        // over text that was no longer highlighted.
+        let primary_pressed = ui.input(|i| i.pointer.button_pressed(egui::PointerButton::Primary));
+        if primary_pressed {
             ui.ctx()
-                .memory_mut(|m| m.data.insert_temp(remembered_id, (a, b)));
+                .memory_mut(|m| m.data.remove::<(usize, usize)>(prev_id));
+        }
+
+        match live {
+            Some((a, b)) if a != b => {
+                ui.ctx().memory_mut(|m| m.data.insert_temp(prev_id, (a, b)));
+            }
+            Some(_) => {
+                ui.ctx()
+                    .memory_mut(|m| m.data.remove::<(usize, usize)>(prev_id));
+            }
+            None => {}
         }
     }
 
-    let remembered: Option<(usize, usize)> = ui
-        .ctx()
-        .memory(|m| m.data.get_temp::<(usize, usize)>(remembered_id));
-
-    // Prefer the live range, but fall back to what was saved before the
-    // right-click wiped it. Guard the bounds: the text may have changed
-    // since, and stale offsets would panic when sliced.
+    // Prefer what the widget reports now; fall back to the saved range.
     let selection: Option<(usize, usize)> = live
         .filter(|(a, b)| a != b)
-        .or(remembered)
-        .filter(|&(a, b)| a < b && b <= text.len() && text.is_char_boundary(a) && text.is_char_boundary(b));
+        .or(prev)
+        .filter(|&(a, b)| {
+            a < b && b <= text.len() && text.is_char_boundary(a) && text.is_char_boundary(b)
+        });
 
     let has_selection = selection.is_some();
 
@@ -1130,6 +1180,9 @@ fn text_edit_with_menu(
     // caret, not the remembered selection, so it follows the cursor.
     let caret = live.map(|(a, _)| a).unwrap_or(text.len());
 
+    // Same widget as `edit_id` above; using the response's id keeps the two
+    // in step even if egui changes how it derives one from the salt.
+    debug_assert_eq!(edit_id, out.response.id);
     let edit_id = out.response.id;
     let mut new_text: Option<(String, usize)> = None;
     let mut select_all = false;
@@ -1218,9 +1271,9 @@ fn text_edit_with_menu(
         *text = t;
         changed = true;
 
-        // The remembered selection describes text that no longer exists.
+        // The saved selection describes text that no longer exists.
         ui.ctx()
-            .memory_mut(|m| m.data.remove::<(usize, usize)>(remembered_id));
+            .memory_mut(|m| m.data.remove::<(usize, usize)>(prev_id));
 
         let mut at = caret_byte.min(text.len());
         while at > 0 && !text.is_char_boundary(at) {
@@ -1239,7 +1292,7 @@ fn text_edit_with_menu(
     if select_all {
         let full = (0usize, text.len());
         ui.ctx()
-            .memory_mut(|m| m.data.insert_temp(remembered_id, full));
+            .memory_mut(|m| m.data.insert_temp(prev_id, full));
 
         if let Some(mut state) = egui::TextEdit::load_state(ui.ctx(), edit_id) {
             state.cursor.set_char_range(Some(egui::text::CCursorRange::two(
