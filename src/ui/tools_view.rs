@@ -949,6 +949,161 @@ pub fn render_tool_workspace(
     }
 }
 
+/// A text field carrying the usual Cut / Copy / Paste / Select All menu.
+///
+/// egui gives `TextEdit` keyboard shortcuts but no context menu, so this adds
+/// one and drives it through the same selection state the keyboard uses.
+/// Returns true when the text changed.
+fn text_edit_with_menu(
+    ui: &mut egui::Ui,
+    text: &mut String,
+    multiline: bool,
+    id_salt: &str,
+    hint: &str,
+    width: f32,
+    rows: usize,
+    monospace: bool,
+) -> bool {
+    let mut builder = if multiline {
+        egui::TextEdit::multiline(text)
+    } else {
+        egui::TextEdit::singleline(text)
+    }
+    .id_salt(id_salt)
+    .hint_text(hint)
+    .desired_width(width);
+
+    if multiline {
+        builder = builder.desired_rows(rows);
+    }
+    if monospace {
+        builder = builder.font(egui::TextStyle::Monospace);
+    }
+
+    // `show` is used instead of `ui.add` so the cursor range comes back.
+    let out = builder.show(ui);
+    let mut changed = out.response.changed();
+
+    // Byte offsets of the current selection, empty when nothing is selected.
+    let selection: Option<(usize, usize)> = out.cursor_range.map(|range| {
+        let [min, max] = range.sorted_cursors();
+        let a = byte_index_from_char_index(text, min.ccursor.index);
+        let b = byte_index_from_char_index(text, max.ccursor.index);
+        (a, b)
+    });
+    let has_selection = selection.map(|(a, b)| a != b).unwrap_or(false);
+
+    // Caret position, used as the insertion point when nothing is selected.
+    let caret = selection.map(|(a, _)| a).unwrap_or(text.len());
+
+    let edit_id = out.response.id;
+    let mut new_text: Option<(String, usize)> = None;
+    let mut select_all = false;
+
+    out.response.context_menu(|ui| {
+        ui.set_min_width(150.0_f32);
+
+        if ui
+            .add_enabled(has_selection, egui::Button::new("Cut"))
+            .clicked()
+        {
+            if let Some((a, b)) = selection {
+                if let Ok(mut cb) = arboard::Clipboard::new() {
+                    let _ = cb.set_text(text[a..b].to_string());
+                }
+                let mut t = text.clone();
+                t.replace_range(a..b, "");
+                new_text = Some((t, a));
+            }
+            ui.close_menu();
+        }
+
+        if ui
+            .add_enabled(has_selection, egui::Button::new("Copy"))
+            .clicked()
+        {
+            if let Some((a, b)) = selection {
+                if let Ok(mut cb) = arboard::Clipboard::new() {
+                    let _ = cb.set_text(text[a..b].to_string());
+                }
+            }
+            ui.close_menu();
+        }
+
+        if ui.button("Paste").clicked() {
+            if let Ok(mut cb) = arboard::Clipboard::new() {
+                if let Ok(pasted) = cb.get_text() {
+                    // A single-line field must not gain newlines.
+                    let pasted = if multiline {
+                        pasted
+                    } else {
+                        pasted.replace(['\n', '\r'], " ")
+                    };
+                    let mut t = text.clone();
+                    match selection {
+                        Some((a, b)) if a != b => {
+                            t.replace_range(a..b, &pasted);
+                            new_text = Some((t, a + pasted.len()));
+                        }
+                        _ => {
+                            let at = caret.min(t.len());
+                            t.insert_str(at, &pasted);
+                            new_text = Some((t, at + pasted.len()));
+                        }
+                    }
+                }
+            }
+            ui.close_menu();
+        }
+
+        ui.separator();
+
+        if ui
+            .add_enabled(!text.is_empty(), egui::Button::new("Select All"))
+            .clicked()
+        {
+            select_all = true;
+            ui.close_menu();
+        }
+    });
+
+    // Apply the edit and put the caret where the user would expect it.
+    if let Some((t, caret_byte)) = new_text {
+        *text = t;
+        changed = true;
+
+        let char_idx = text[..caret_byte.min(text.len())].chars().count();
+        if let Some(mut state) = egui::TextEdit::load_state(ui.ctx(), edit_id) {
+            state.cursor.set_char_range(Some(egui::text::CCursorRange::one(
+                egui::text::CCursor::new(char_idx),
+            )));
+            state.store(ui.ctx(), edit_id);
+        }
+        ui.ctx().memory_mut(|m| m.request_focus(edit_id));
+    }
+
+    if select_all {
+        if let Some(mut state) = egui::TextEdit::load_state(ui.ctx(), edit_id) {
+            state.cursor.set_char_range(Some(egui::text::CCursorRange::two(
+                egui::text::CCursor::new(0),
+                egui::text::CCursor::new(text.chars().count()),
+            )));
+            state.store(ui.ctx(), edit_id);
+        }
+        ui.ctx().memory_mut(|m| m.request_focus(edit_id));
+    }
+
+    changed
+}
+
+/// Convert a char index into a byte index, which is what `String` slicing needs.
+fn byte_index_from_char_index(s: &str, char_index: usize) -> usize {
+    s.char_indices()
+        .nth(char_index)
+        .map(|(i, _)| i)
+        .unwrap_or(s.len())
+}
+
 /// The Note Vault workspace: a list of notes down the left, editor on the right.
 ///
 /// Notes live in `AppVault`, so they are saved with everything else and are
@@ -1112,15 +1267,16 @@ fn render_note_vault(
 
             ui.horizontal(|ui| {
                 ui.label(RichText::new("Title:").size(11.5_f32).color(text_secondary));
-                if ui
-                    .add(
-                        egui::TextEdit::singleline(&mut tools.note_title_buf)
-                            .id_salt("note_title")
-                            .hint_text("Note title")
-                            .desired_width(260.0_f32),
-                    )
-                    .changed()
-                {
+                if text_edit_with_menu(
+                    ui,
+                    &mut tools.note_title_buf,
+                    false,
+                    "note_title",
+                    "Note title",
+                    260.0_f32,
+                    1,
+                    false,
+                ) {
                     tools.note_dirty = true;
                 }
 
@@ -1206,17 +1362,16 @@ fn render_note_vault(
                         .id_salt("note_body_scroll")
                         .auto_shrink([false, false])
                         .show(ui, |ui| {
-                            if ui
-                                .add(
-                                    egui::TextEdit::multiline(&mut tools.note_body_buf)
-                                        .id_salt("note_body")
-                                        .font(egui::TextStyle::Monospace)
-                                        .desired_width(f32::INFINITY)
-                                        .desired_rows(18)
-                                        .hint_text("Write anything here - credentials, runbooks, snippets."),
-                                )
-                                .changed()
-                            {
+                            if text_edit_with_menu(
+                                ui,
+                                &mut tools.note_body_buf,
+                                true,
+                                "note_body",
+                                "Write anything here - credentials, runbooks, snippets.",
+                                f32::INFINITY,
+                                18,
+                                true,
+                            ) {
                                 tools.note_dirty = true;
                             }
                         });
