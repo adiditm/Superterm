@@ -611,11 +611,10 @@ pub fn render_tool_workspace(
         ActiveTool::Ping => {
             ui.horizontal(|ui| {
                 ui.label(RichText::new("Host / IP:").color(text_primary));
-                ui.add(
-                    egui::TextEdit::singleline(&mut tools.ping_target)
-                        .desired_width(240.0_f32)
-                        .hint_text("e.g. server.example.com or 8.8.8.8"),
-                );
+                MenuEdit::single("ping_target")
+                    .hint("e.g. server.example.com or 8.8.8.8")
+                    .width(240.0_f32)
+                    .show(ui, &mut tools.ping_target);
                 ui.label(RichText::new("Count:").color(text_primary));
                 ui.add(egui::DragValue::new(&mut tools.ping_count).range(1..=20));
 
@@ -637,11 +636,10 @@ pub fn render_tool_workspace(
         ActiveTool::Traceroute => {
             ui.horizontal(|ui| {
                 ui.label(RichText::new("Target Host / IP:").color(text_primary));
-                ui.add(
-                    egui::TextEdit::singleline(&mut tools.traceroute_target)
-                        .desired_width(280.0_f32)
-                        .hint_text("e.g. server.example.com or 1.1.1.1"),
-                );
+                MenuEdit::single("traceroute_target")
+                    .hint("e.g. server.example.com or 1.1.1.1")
+                    .width(280.0_f32)
+                    .show(ui, &mut tools.traceroute_target);
                 if ui
                     .add_enabled(
                         !is_running,
@@ -658,13 +656,14 @@ pub fn render_tool_workspace(
         ActiveTool::PortScanner => {
             ui.horizontal(|ui| {
                 ui.label(RichText::new("Host / IP:").color(text_primary));
-                ui.add(egui::TextEdit::singleline(&mut tools.scan_target).desired_width(180.0_f32));
+                MenuEdit::single("scan_target")
+                    .width(180.0_f32)
+                    .show(ui, &mut tools.scan_target);
                 ui.label(RichText::new("Ports:").color(text_primary));
-                ui.add(
-                    egui::TextEdit::singleline(&mut tools.scan_ports)
-                        .desired_width(240.0_f32)
-                        .hint_text("22,80,443 or 1-1024"),
-                );
+                MenuEdit::single("scan_ports")
+                    .hint("22,80,443 or 1-1024")
+                    .width(240.0_f32)
+                    .show(ui, &mut tools.scan_ports);
                 if ui
                     .add_enabled(
                         !is_running,
@@ -681,7 +680,9 @@ pub fn render_tool_workspace(
         ActiveTool::DnsLookup => {
             ui.horizontal(|ui| {
                 ui.label(RichText::new("Domain / Host:").color(text_primary));
-                ui.add(egui::TextEdit::singleline(&mut tools.dns_target).desired_width(220.0_f32));
+                MenuEdit::single("dns_target")
+                    .width(220.0_f32)
+                    .show(ui, &mut tools.dns_target);
                 ui.label(RichText::new("Type:").color(text_primary));
                 for t in ["ALL", "A", "AAAA", "MX", "NS", "TXT", "CNAME"] {
                     if ui.selectable_label(tools.dns_type == t, t).clicked() {
@@ -704,11 +705,10 @@ pub fn render_tool_workspace(
         ActiveTool::DnsWhois => {
             ui.horizontal(|ui| {
                 ui.label(RichText::new("Domain (gTLD / ccTLD):").color(text_primary));
-                ui.add(
-                    egui::TextEdit::singleline(&mut tools.whois_target)
-                        .desired_width(250.0_f32)
-                        .hint_text("e.g. example.com, google.co.id, nic.io, bbc.co.uk"),
-                );
+                MenuEdit::single("whois_target")
+                    .hint("e.g. example.com, google.co.id, nic.io, bbc.co.uk")
+                    .width(250.0_f32)
+                    .show(ui, &mut tools.whois_target);
                 if ui
                     .add_enabled(
                         !is_running,
@@ -783,7 +783,9 @@ pub fn render_tool_workspace(
                     ui.add_space(6.0_f32);
                     ui.horizontal(|ui| {
                         ui.label(RichText::new("Key File Name:").color(text_primary));
-                        ui.add(egui::TextEdit::singleline(&mut tools.keygen_name).desired_width(180.0_f32));
+                        MenuEdit::single("keygen_name")
+                            .width(180.0_f32)
+                            .show(ui, &mut tools.keygen_name);
                         ui.label(RichText::new("Algorithm:").color(text_primary));
                         for alg in ["Ed25519", "ECDSA-P256"] {
                             if ui.selectable_label(tools.keygen_algo == alg, alg).clicked() {
@@ -793,9 +795,14 @@ pub fn render_tool_workspace(
                     });
                     ui.horizontal(|ui| {
                         ui.label(RichText::new("Comment:").color(text_primary));
-                        ui.add(egui::TextEdit::singleline(&mut tools.keygen_comment).desired_width(180.0_f32));
+                        MenuEdit::single("keygen_comment")
+                            .width(180.0_f32)
+                            .show(ui, &mut tools.keygen_comment);
                         ui.label(RichText::new("Passphrase (optional):").color(text_primary));
-                        ui.add(egui::TextEdit::singleline(&mut tools.keygen_passphrase).password(true).desired_width(150.0_f32));
+                        MenuEdit::single("keygen_passphrase")
+                            .password()
+                            .width(150.0_f32)
+                            .show(ui, &mut tools.keygen_passphrase);
                     });
                     ui.add_space(6.0_f32);
                     ui.horizontal(|ui| {
@@ -830,7 +837,9 @@ pub fn render_tool_workspace(
                     if let Some(pub_key) = &tools.keygen_last_pub {
                         ui.horizontal(|ui| {
                             let mut pk_copy = pub_key.clone();
-                            ui.add(egui::TextEdit::singleline(&mut pk_copy).desired_width(480.0_f32));
+                            MenuEdit::single("keygen_pubkey")
+                                .width(480.0_f32)
+                                .show(ui, &mut pk_copy);
                             if ui.button("Copy Public Key").clicked() {
                                 if let Ok(mut cb) = arboard::Clipboard::new() {
                                     let _ = cb.set_text(pub_key.clone());
@@ -953,7 +962,84 @@ pub fn render_tool_workspace(
 ///
 /// egui gives `TextEdit` keyboard shortcuts but no context menu, so this adds
 /// one and drives it through the same selection state the keyboard uses.
-/// Returns true when the text changed.
+///
+/// Build with [`MenuEdit::single`] or [`MenuEdit::multi`], then `.show(ui)`.
+pub struct MenuEdit<'a> {
+    id_salt: &'a str,
+    multiline: bool,
+    hint: &'a str,
+    width: f32,
+    rows: usize,
+    monospace: bool,
+    password: bool,
+}
+
+impl<'a> MenuEdit<'a> {
+    /// A one-line field.
+    pub fn single(id_salt: &'a str) -> Self {
+        Self {
+            id_salt,
+            multiline: false,
+            hint: "",
+            width: 200.0_f32,
+            rows: 1,
+            monospace: false,
+            password: false,
+        }
+    }
+
+    /// A multi-line field.
+    pub fn multi(id_salt: &'a str, rows: usize) -> Self {
+        Self {
+            id_salt,
+            multiline: true,
+            hint: "",
+            width: f32::INFINITY,
+            rows,
+            monospace: false,
+            password: false,
+        }
+    }
+
+    pub fn hint(mut self, hint: &'a str) -> Self {
+        self.hint = hint;
+        self
+    }
+
+    pub fn width(mut self, width: f32) -> Self {
+        self.width = width;
+        self
+    }
+
+    pub fn monospace(mut self) -> Self {
+        self.monospace = true;
+        self
+    }
+
+    /// Mask the text. Copy and Cut are withheld so a masked secret cannot be
+    /// lifted out through the menu.
+    pub fn password(mut self) -> Self {
+        self.password = true;
+        self
+    }
+
+    /// Draw the field; returns true when the text changed.
+    pub fn show(self, ui: &mut egui::Ui, text: &mut String) -> bool {
+        text_edit_with_menu(
+            ui,
+            text,
+            self.multiline,
+            self.id_salt,
+            self.hint,
+            self.width,
+            self.rows,
+            self.monospace,
+            self.password,
+        )
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
 fn text_edit_with_menu(
     ui: &mut egui::Ui,
     text: &mut String,
@@ -963,6 +1049,7 @@ fn text_edit_with_menu(
     width: f32,
     rows: usize,
     monospace: bool,
+    password: bool,
 ) -> bool {
     let mut builder = if multiline {
         egui::TextEdit::multiline(text)
@@ -979,13 +1066,27 @@ fn text_edit_with_menu(
     if monospace {
         builder = builder.font(egui::TextStyle::Monospace);
     }
+    if password {
+        builder = builder.password(true);
+    }
 
     // `show` is used instead of `ui.add` so the cursor range comes back.
     let out = builder.show(ui);
     let mut changed = out.response.changed();
 
+    // `out.cursor_range` is only populated while the field holds focus, and
+    // opening a context menu takes focus away - which is why right-clicking a
+    // selection used to report nothing selected. The stored cursor state
+    // survives the focus change, so read that instead and fall back to the
+    // live range only when the stored one is absent.
+    let range = out
+        .state
+        .cursor
+        .range(&out.galley)
+        .or(out.cursor_range);
+
     // Byte offsets of the current selection, empty when nothing is selected.
-    let selection: Option<(usize, usize)> = out.cursor_range.map(|range| {
+    let selection: Option<(usize, usize)> = range.map(|range| {
         let [min, max] = range.sorted_cursors();
         let a = byte_index_from_char_index(text, min.ccursor.index);
         let b = byte_index_from_char_index(text, max.ccursor.index);
@@ -1003,31 +1104,35 @@ fn text_edit_with_menu(
     out.response.context_menu(|ui| {
         ui.set_min_width(150.0_f32);
 
-        if ui
-            .add_enabled(has_selection, egui::Button::new("Cut"))
-            .clicked()
-        {
-            if let Some((a, b)) = selection {
-                if let Ok(mut cb) = arboard::Clipboard::new() {
-                    let _ = cb.set_text(text[a..b].to_string());
+        // Reading a masked field through the menu would defeat the mask, so
+        // a password field offers only Paste and Select All.
+        if !password {
+            if ui
+                .add_enabled(has_selection, egui::Button::new("Cut"))
+                .clicked()
+            {
+                if let Some((a, b)) = selection {
+                    if let Ok(mut cb) = arboard::Clipboard::new() {
+                        let _ = cb.set_text(text[a..b].to_string());
+                    }
+                    let mut t = text.clone();
+                    t.replace_range(a..b, "");
+                    new_text = Some((t, a));
                 }
-                let mut t = text.clone();
-                t.replace_range(a..b, "");
-                new_text = Some((t, a));
+                ui.close_menu();
             }
-            ui.close_menu();
-        }
 
-        if ui
-            .add_enabled(has_selection, egui::Button::new("Copy"))
-            .clicked()
-        {
-            if let Some((a, b)) = selection {
-                if let Ok(mut cb) = arboard::Clipboard::new() {
-                    let _ = cb.set_text(text[a..b].to_string());
+            if ui
+                .add_enabled(has_selection, egui::Button::new("Copy"))
+                .clicked()
+            {
+                if let Some((a, b)) = selection {
+                    if let Ok(mut cb) = arboard::Clipboard::new() {
+                        let _ = cb.set_text(text[a..b].to_string());
+                    }
                 }
+                ui.close_menu();
             }
-            ui.close_menu();
         }
 
         if ui.button("Paste").clicked() {
@@ -1046,7 +1151,12 @@ fn text_edit_with_menu(
                             new_text = Some((t, a + pasted.len()));
                         }
                         _ => {
-                            let at = caret.min(t.len());
+                            // Clamping with `min` alone could land inside a
+                            // multi-byte character and panic on insert.
+                            let mut at = caret.min(t.len());
+                            while at > 0 && !t.is_char_boundary(at) {
+                                at -= 1;
+                            }
                             t.insert_str(at, &pasted);
                             new_text = Some((t, at + pasted.len()));
                         }
@@ -1267,16 +1377,11 @@ fn render_note_vault(
 
             ui.horizontal(|ui| {
                 ui.label(RichText::new("Title:").size(11.5_f32).color(text_secondary));
-                if text_edit_with_menu(
-                    ui,
-                    &mut tools.note_title_buf,
-                    false,
-                    "note_title",
-                    "Note title",
-                    260.0_f32,
-                    1,
-                    false,
-                ) {
+                if MenuEdit::single("note_title")
+                    .hint("Note title")
+                    .width(260.0_f32)
+                    .show(ui, &mut tools.note_title_buf)
+                {
                     tools.note_dirty = true;
                 }
 
@@ -1362,16 +1467,11 @@ fn render_note_vault(
                         .id_salt("note_body_scroll")
                         .auto_shrink([false, false])
                         .show(ui, |ui| {
-                            if text_edit_with_menu(
-                                ui,
-                                &mut tools.note_body_buf,
-                                true,
-                                "note_body",
-                                "Write anything here - credentials, runbooks, snippets.",
-                                f32::INFINITY,
-                                18,
-                                true,
-                            ) {
+                            if MenuEdit::multi("note_body", 18)
+                                .hint("Write anything here - credentials, runbooks, snippets.")
+                                .monospace()
+                                .show(ui, &mut tools.note_body_buf)
+                            {
                                 tools.note_dirty = true;
                             }
                         });
@@ -1570,12 +1670,10 @@ pub fn render_sql_client(
 
             ui.horizontal(|ui| {
                 ui.label(RichText::new("Name:").size(11.5_f32).color(label_col));
-                ui.add(
-                    egui::TextEdit::singleline(&mut sess.conn_name)
-                        .id_salt(("sql_name", sess_key))
-                        .hint_text("e.g. India Live DB")
-                        .desired_width(170.0_f32),
-                );
+                MenuEdit::single(&format!("sql_name:{}", sess_key))
+                    .hint("e.g. India Live DB")
+                    .width(170.0_f32)
+                    .show(ui, &mut sess.conn_name);
 
                 ui.add_space(8.0_f32);
                 ui.label(RichText::new("Type:").size(11.5_f32).color(label_col));
@@ -1604,18 +1702,14 @@ pub fn render_sql_client(
 
             ui.horizontal(|ui| {
                 ui.label(RichText::new("Host:").size(11.5_f32).color(label_col));
-                ui.add(
-                    egui::TextEdit::singleline(&mut sess.host)
-                        .id_salt(("sql_host", sess_key))
-                        .desired_width(150.0_f32),
-                );
+                MenuEdit::single(&format!("sql_host:{}", sess_key))
+                    .width(150.0_f32)
+                    .show(ui, &mut sess.host);
 
                 ui.label(RichText::new("Port:").size(11.5_f32).color(label_col));
-                ui.add(
-                    egui::TextEdit::singleline(&mut sess.port)
-                        .id_salt(("sql_port", sess_key))
-                        .desired_width(60.0_f32),
-                );
+                MenuEdit::single(&format!("sql_port:{}", sess_key))
+                    .width(60.0_f32)
+                    .show(ui, &mut sess.port);
 
                 // Active local tunnels make a convenient source of host:port.
                 let tunnels: Vec<(String, String, u16)> = vault
@@ -1662,27 +1756,25 @@ pub fn render_sql_client(
 
             ui.horizontal(|ui| {
                 ui.label(RichText::new("User:").size(11.5_f32).color(label_col));
-                ui.add(
-                    egui::TextEdit::singleline(&mut sess.user)
-                        .id_salt(("sql_user", sess_key))
-                        .desired_width(120.0_f32),
-                );
+                MenuEdit::single(&format!("sql_user:{}", sess_key))
+                    .width(120.0_f32)
+                    .show(ui, &mut sess.user);
 
                 ui.label(RichText::new("Password:").size(11.5_f32).color(label_col));
-                ui.add(
-                    egui::TextEdit::singleline(&mut sess.pass)
-                        .id_salt(("sql_pass", sess_key))
-                        .password(!sess.reveal_pass)
-                        .desired_width(130.0_f32),
-                );
+                // Revealing the password also restores Copy and Cut, since the
+                // user has already chosen to show it.
+                let pass_id = format!("sql_pass:{}", sess_key);
+                let mut pass_edit = MenuEdit::single(&pass_id).width(130.0_f32);
+                if !sess.reveal_pass {
+                    pass_edit = pass_edit.password();
+                }
+                pass_edit.show(ui, &mut sess.pass);
                 ui.checkbox(&mut sess.reveal_pass, RichText::new("Show").size(11.0_f32).color(label_col));
 
                 ui.label(RichText::new("Database:").size(11.5_f32).color(label_col));
-                ui.add(
-                    egui::TextEdit::singleline(&mut sess.database)
-                        .id_salt(("sql_db", sess_key))
-                        .desired_width(130.0_f32),
-                );
+                MenuEdit::single(&format!("sql_db:{}", sess_key))
+                    .width(130.0_f32)
+                    .show(ui, &mut sess.database);
             });
         });
 
@@ -1699,13 +1791,9 @@ pub fn render_sql_client(
     });
     ui.add_space(3.0_f32);
 
-    ui.add(
-        egui::TextEdit::multiline(&mut sess.query)
-            .id_salt(("sql_query", sess_key))
-            .font(egui::TextStyle::Monospace)
-            .desired_width(f32::INFINITY)
-            .desired_rows(6),
-    );
+    MenuEdit::multi(&format!("sql_query:{}", sess_key), 6)
+        .monospace()
+        .show(ui, &mut sess.query);
 
     let ctrl_enter = ui.input(|i| i.modifiers.command && i.key_pressed(egui::Key::Enter));
 
@@ -2111,13 +2199,9 @@ pub fn render_sql_client(
                         .color(text_secondary),
                 );
                 ui.add_space(6.0_f32);
-                ui.add(
-                    egui::TextEdit::multiline(&mut sess.edit_buffer)
-                        .id_salt(("sql_edit_buffer", sess_key))
-                        .font(egui::TextStyle::Monospace)
-                        .desired_width(f32::INFINITY)
-                        .desired_rows(10),
-                );
+                MenuEdit::multi(&format!("sql_edit_buffer:{}", sess_key), 10)
+                    .monospace()
+                    .show(ui, &mut sess.edit_buffer);
                 ui.add_space(8.0_f32);
                 ui.horizontal(|ui| {
                     let can_run = !sess.edit_buffer.trim().is_empty();
