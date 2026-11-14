@@ -1100,20 +1100,39 @@ fn text_edit_with_menu(
         .unwrap_or(false);
     let restoring = secondary_active || menu_was_open;
 
-    if restoring {
-        if let Some((a, b)) = prev {
-            if a != b && b <= text.len() && text.is_char_boundary(a) && text.is_char_boundary(b) {
-                let ca = text[..a].chars().count();
-                let cb = text[..b].chars().count();
-                if let Some(mut st) = egui::TextEdit::load_state(ui.ctx(), edit_id) {
-                    st.cursor.set_char_range(Some(egui::text::CCursorRange::two(
-                        egui::text::CCursor::new(ca),
-                        egui::text::CCursor::new(cb),
-                    )));
-                    st.store(ui.ctx(), edit_id);
-                }
-            }
+    // The saved range, converted to char indices, if it still fits the text.
+    let prev_chars: Option<(usize, usize)> = prev.and_then(|(a, b)| {
+        if a != b && b <= text.len() && text.is_char_boundary(a) && text.is_char_boundary(b) {
+            Some((text[..a].chars().count(), text[..b].chars().count()))
+        } else {
+            None
         }
+    });
+
+    // Where this field was last frame, so a right-press can be matched to it
+    // before the widget has been laid out this frame.
+    let rect_id = egui::Id::new(("menu_edit_rect", id_salt));
+    let last_rect: Option<egui::Rect> = ui.ctx().memory(|m| m.data.get_temp(rect_id));
+
+    // egui's TextEdit collapses the selection on any pointer press *unless*
+    // Shift is held, in which case it extends instead. Restoring the range
+    // before the widget ran was useless - the widget collapsed it again in
+    // the same frame. So on a right-press over this field, Shift is reported
+    // to the widget for this one call only, and the exact range is written
+    // back afterwards.
+    let secondary_press_here = ui.input(|i| {
+        i.pointer.button_pressed(egui::PointerButton::Secondary)
+            && i
+                .pointer
+                .interact_pos()
+                .zip(last_rect)
+                .map(|(p, r)| r.contains(p))
+                .unwrap_or(false)
+    });
+    let fake_shift = secondary_press_here && prev_chars.is_some();
+    let saved_modifiers = ui.input(|i| i.modifiers);
+    if fake_shift {
+        ui.ctx().input_mut(|i| i.modifiers.shift = true);
     }
 
     let mut builder = if multiline {
@@ -1139,12 +1158,33 @@ fn text_edit_with_menu(
     let out = builder.show(ui);
     let mut changed = out.response.changed();
 
+    // Put the real Shift state back at once so no other widget sees it.
+    if fake_shift {
+        ui.ctx().input_mut(|i| i.modifiers = saved_modifiers);
+    }
+    ui.ctx()
+        .memory_mut(|m| m.data.insert_temp(rect_id, out.response.rect));
+
     // Is the menu open right now? Remember it for the next frame's guard.
     let menu_open_now = out.response.context_menu_opened()
         || out.response.secondary_clicked();
     ui.ctx()
         .memory_mut(|m| m.data.insert_temp(open_flag_id, menu_open_now));
-    let restoring = restoring || menu_open_now;
+    let restoring = restoring || menu_open_now || fake_shift;
+
+    // Write the exact saved range back *after* the widget ran, so nothing
+    // later this frame can collapse it. This also keeps it highlighted.
+    if restoring {
+        if let Some((ca, cb)) = prev_chars {
+            if let Some(mut st) = egui::TextEdit::load_state(ui.ctx(), out.response.id) {
+                st.cursor.set_char_range(Some(egui::text::CCursorRange::two(
+                    egui::text::CCursor::new(ca),
+                    egui::text::CCursor::new(cb),
+                )));
+                st.store(ui.ctx(), out.response.id);
+            }
+        }
+    }
 
     let live = out
         .state
