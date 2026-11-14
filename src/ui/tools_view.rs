@@ -1087,8 +1087,18 @@ fn text_edit_with_menu(
             || i.pointer.button_released(egui::PointerButton::Secondary)
             || i.pointer.button_clicked(egui::PointerButton::Secondary)
     });
-    let menu_is_open = ui.ctx().memory(|m| m.any_popup_open());
-    let restoring = secondary_active || menu_is_open;
+    // `memory.any_popup_open()` does NOT see context menus: egui 0.29 keeps
+    // those in a separate BarState. Relying on it meant that on the frames
+    // *after* the menu opened the guard was off, the bare caret wiped the
+    // saved range, and Cut/Copy greyed out a frame later. Whether this
+    // field's menu is open is therefore tracked here, from the previous
+    // frame's `context_menu_opened()`.
+    let open_flag_id = egui::Id::new(("menu_edit_open", id_salt));
+    let menu_was_open = ui
+        .ctx()
+        .memory(|m| m.data.get_temp::<bool>(open_flag_id))
+        .unwrap_or(false);
+    let restoring = secondary_active || menu_was_open;
 
     if restoring {
         if let Some((a, b)) = prev {
@@ -1128,6 +1138,13 @@ fn text_edit_with_menu(
     // `show` is used instead of `ui.add` so the cursor range comes back.
     let out = builder.show(ui);
     let mut changed = out.response.changed();
+
+    // Is the menu open right now? Remember it for the next frame's guard.
+    let menu_open_now = out.response.context_menu_opened()
+        || out.response.secondary_clicked();
+    ui.ctx()
+        .memory_mut(|m| m.data.insert_temp(open_flag_id, menu_open_now));
+    let restoring = restoring || menu_open_now;
 
     let live = out
         .state
