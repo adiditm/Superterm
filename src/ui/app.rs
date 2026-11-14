@@ -2563,21 +2563,21 @@ impl eframe::App for SupertermNativeApp {
                             _ => None,
                         })
                         .collect();
-                    let single_labels: Vec<String> = if live_tabs.len() == 1 {
-                        vec!["Disconnect".to_string()]
-                    } else {
-                        live_tabs
-                            .iter()
-                            .map(|(_, title)| format!("Disconnect {}", title))
-                            .collect()
-                    };
+                    // The tab a single "Disconnect" acts on: the one on screen if
+                    // it belongs to this host, otherwise the most recently opened.
+                    let single_target: Option<String> = live_tabs
+                        .iter()
+                        .find(|(id, _)| self.active_tab_id.as_deref() == Some(id.as_str()))
+                        .or_else(|| live_tabs.last())
+                        .map(|(id, _)| id.clone());
+                    let has_live = !live_tabs.is_empty();
 
                     // Keep the popup fully on-screen regardless of where it was opened.
                     let screen = ctx.screen_rect();
                     // Rough bounds used only to keep the popup on screen;
                     // the real width is measured from the labels below.
                     // Each extra disconnect row is 24px + spacing.
-                    let extra_rows = single_labels.len() + usize::from(live_tabs.len() > 1);
+                    let extra_rows = if has_live { 2 } else { 0 };
                     let menu_size = Vec2::new(185.0_f32, 265.0_f32 + 25.0_f32 * extra_rows as f32);
                     let anchor = egui::Pos2::new(
                         menu_pos
@@ -2607,10 +2607,8 @@ impl eframe::App for SupertermNativeApp {
                                         "Export Connection",
                                         "Delete",
                                     ];
-                                    for l in &single_labels {
-                                        labels.push(l.as_str());
-                                    }
-                                    if live_tabs.len() > 1 {
+                                    if has_live {
+                                        labels.push("Disconnect");
                                         labels.push("Disconnect All Tabs");
                                     }
                                     let row_w = menu_width_for(ui, &labels);
@@ -2645,14 +2643,14 @@ impl eframe::App for SupertermNativeApp {
                                         menu_connect_new_tab_req = Some(host.id.clone());
                                         close_menu = true;
                                     }
-                                    // One entry per live tab; with a single tab the
-                                    // label is just "Disconnect".
-                                    for ((tab_id, _), label) in live_tabs.iter().zip(single_labels.iter()) {
+                                    // "Disconnect" drops one tab of this host;
+                                    // "Disconnect All Tabs" drops every one.
+                                    if let Some(tab_id) = &single_target {
                                         if menu_item(
                                             ui,
                                             row_w,
                                             MenuIcon::Disconnect,
-                                            label,
+                                            "Disconnect",
                                             accent_amber,
                                             btn_neutral_bg,
                                         )
@@ -2662,7 +2660,7 @@ impl eframe::App for SupertermNativeApp {
                                             close_menu = true;
                                         }
                                     }
-                                    if live_tabs.len() > 1
+                                    if has_live
                                         && menu_item(
                                             ui,
                                             row_w,
