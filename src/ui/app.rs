@@ -1508,6 +1508,7 @@ impl eframe::App for SupertermNativeApp {
         let mut menu_connect_req: Option<String> = None;
         let mut menu_connect_new_tab_req: Option<String> = None;
         let mut menu_disconnect_req: Option<String> = None;
+        let mut menu_disconnect_tab_req: Option<String> = None;
         let mut menu_edit_req: Option<HostProfile> = None;
         let mut menu_duplicate_req: Option<String> = None;
         let mut menu_rename_req: Option<(String, String)> = None;
@@ -2546,11 +2547,38 @@ impl eframe::App for SupertermNativeApp {
                     let is_connected = self.is_host_connected(&host.id);
                     let mut close_menu = false;
 
+                    // Each live (or connecting) tab of this host, so a single one
+                    // can be disconnected without dropping the rest.
+                    let live_tabs: Vec<(String, String)> = self
+                        .open_tabs
+                        .iter()
+                        .filter_map(|t| match &t.kind {
+                            TabKind::Ssh { session_key, host_id }
+                                if *host_id == host.id
+                                    && (self.active_sessions.contains_key(session_key)
+                                        || self.connecting_sessions.contains(session_key)) =>
+                            {
+                                Some((t.id.clone(), t.title.clone()))
+                            }
+                            _ => None,
+                        })
+                        .collect();
+                    let single_labels: Vec<String> = if live_tabs.len() == 1 {
+                        vec!["Disconnect".to_string()]
+                    } else {
+                        live_tabs
+                            .iter()
+                            .map(|(_, title)| format!("Disconnect {}", title))
+                            .collect()
+                    };
+
                     // Keep the popup fully on-screen regardless of where it was opened.
                     let screen = ctx.screen_rect();
                     // Rough bounds used only to keep the popup on screen;
                     // the real width is measured from the labels below.
-                    let menu_size = Vec2::new(185.0_f32, 265.0_f32);
+                    // Each extra disconnect row is 24px + spacing.
+                    let extra_rows = single_labels.len() + usize::from(live_tabs.len() > 1);
+                    let menu_size = Vec2::new(185.0_f32, 265.0_f32 + 25.0_f32 * extra_rows as f32);
                     let anchor = egui::Pos2::new(
                         menu_pos
                             .x
@@ -2579,7 +2607,10 @@ impl eframe::App for SupertermNativeApp {
                                         "Export Connection",
                                         "Delete",
                                     ];
-                                    if is_connected {
+                                    for l in &single_labels {
+                                        labels.push(l.as_str());
+                                    }
+                                    if live_tabs.len() > 1 {
                                         labels.push("Disconnect All Tabs");
                                     }
                                     let row_w = menu_width_for(ui, &labels);
@@ -2614,7 +2645,24 @@ impl eframe::App for SupertermNativeApp {
                                         menu_connect_new_tab_req = Some(host.id.clone());
                                         close_menu = true;
                                     }
-                                    if is_connected
+                                    // One entry per live tab; with a single tab the
+                                    // label is just "Disconnect".
+                                    for ((tab_id, _), label) in live_tabs.iter().zip(single_labels.iter()) {
+                                        if menu_item(
+                                            ui,
+                                            row_w,
+                                            MenuIcon::Disconnect,
+                                            label,
+                                            accent_amber,
+                                            btn_neutral_bg,
+                                        )
+                                        .clicked()
+                                        {
+                                            menu_disconnect_tab_req = Some(tab_id.clone());
+                                            close_menu = true;
+                                        }
+                                    }
+                                    if live_tabs.len() > 1
                                         && menu_item(
                                             ui,
                                             row_w,
@@ -2628,6 +2676,7 @@ impl eframe::App for SupertermNativeApp {
                                         menu_disconnect_req = Some(host.id.clone());
                                         close_menu = true;
                                     }
+                                    let _ = is_connected;
 
                                     ui.add_space(3.0_f32);
                                     ui.separator();
@@ -2729,6 +2778,11 @@ impl eframe::App for SupertermNativeApp {
         }
         if let Some(hid) = menu_disconnect_req {
             self.close_all_tabs_for_host(&hid);
+        }
+        if let Some(tid) = menu_disconnect_tab_req {
+            // Same teardown as "Disconnect All Tabs", for one tab only. The
+            // host's tunnels stop only once its last tab is gone.
+            self.close_tab(&tid);
         }
         if let Some(host) = menu_edit_req {
             self.load_host_into_editor(&host);
