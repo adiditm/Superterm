@@ -1,8 +1,8 @@
 # Rust build output (~1.9 GB, fully reproducible from source)
 /target/
 
-# Built binary; produced by `cargo build --release`
-/Superterm.exe
+# Built binaries; produced by `cargo build --release`
+/Superterm*.exe
 
 # Scratch files from debugging sessions
 app_debug.txt

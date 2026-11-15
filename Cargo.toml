@@ -15,10 +15,12 @@ russh-keys = "0.45"
 ssh-key = { version = "0.6.7", features = ["ed25519", "rsa", "rand_core", "encryption"] }
 vt100 = "0.18"
 portable-pty = { version = "0.9", default-features = false }
-# SQL Client. Plain "runtime-tokio" leaves TLS out entirely, which avoids
-# `ring`'s C build step - this toolchain has no C compiler.
+# SQL Client. TLS comes from the operating system - SChannel on Windows,
+# Security.framework on macOS - through native-tls. rustls was avoided
+# because its `ring` dependency needs a C compiler this toolchain lacks.
 sqlx = { version = "0.8", default-features = false, features = [
     "runtime-tokio",
+    "tls-native-tls",
     "mysql",
     "postgres",
     "chrono",
