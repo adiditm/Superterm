@@ -37,6 +37,8 @@ dirs = "5.0"
 parking_lot = "0.12"
 anyhow = "1.0"
 thiserror = "1.0"
+keyring = "2.3"
+hex = "0.4"
 
 [profile.release]
 opt-level = "z"

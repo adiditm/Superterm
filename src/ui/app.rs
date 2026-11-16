@@ -1489,6 +1489,13 @@ impl SupertermNativeApp {
                         self.close_tab(&session_key);
                     }
                 }
+                SshEvent::HostKeyVerification {
+                    session_key,
+                    host_id,
+                    fingerprint,
+                } => {
+                    self.push_log(&session_key, format!("[!] Host key verification needed: {}", fingerprint));
+                }
                 SshEvent::TunnelLog { host_id, message } => {
                     self.push_log_for_host(&host_id, message);
                 }

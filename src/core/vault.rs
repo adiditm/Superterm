@@ -1,6 +1,30 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
+use keyring::Entry;
+use rand::RngCore;
+use aes_gcm::{aead::Aead, Aes256Gcm, KeyInit, Nonce};
+
+const KEYRING_SERVICE: &str = "com.superterm.vault";
+const KEYRING_USER: &str = "default";
+const MAGIC_V2: &[u8] = b"STV2";
+
+fn get_encryption_key() -> anyhow::Result<[u8; 32]> {
+    let entry = Entry::new(KEYRING_SERVICE, KEYRING_USER)?;
+    match entry.get_password() {
+        Ok(key_hex) => {
+            let key_bytes = hex::decode(key_hex)?;
+            Ok(key_bytes.try_into().map_err(|_| anyhow::anyhow!("Invalid key length"))?)
+        }
+        Err(keyring::Error::NoEntry) => {
+            let mut key = [0u8; 32];
+            rand::rngs::OsRng.fill_bytes(&mut key);
+            entry.set_password(&hex::encode(key))?;
+            Ok(key)
+        }
+        Err(e) => Err(e.into()),
+    }
+}
 
 fn default_session_type() -> String {
     "ssh".to_string()
@@ -325,20 +349,62 @@ pub fn get_vault_path() -> PathBuf {
 
 pub fn load_vault() -> AppVault {
     let path = get_vault_path();
-    if path.exists() {
-        if let Ok(bytes) = fs::read(&path) {
-            if let Ok(vault) = serde_json::from_slice::<AppVault>(&bytes) {
-                return vault;
+    if !path.exists() {
+        return AppVault::default();
+    }
+    
+    let bytes = fs::read(&path).unwrap_or_default();
+    if bytes.len() >= 4 && &bytes[0..4] == MAGIC_V2 {
+        // Load terenkripsi
+        match decrypt_vault(&bytes) {
+            Ok(vault) => return vault,
+            Err(e) => {
+                eprintln!("Failed to decrypt vault: {}", e);
+                return AppVault::default();
             }
+        }
+    } else {
+        // Load legacy (JSON), langsung migrasi ke terenkripsi
+        if let Ok(vault) = serde_json::from_slice::<AppVault>(&bytes) {
+            let _ = save_vault(&vault); // Migrasi
+            return vault;
         }
     }
     AppVault::default()
 }
 
+fn decrypt_vault(data: &[u8]) -> anyhow::Result<AppVault> {
+    let key = get_encryption_key()?;
+    let nonce_bytes = &data[4..16];
+    let ciphertext = &data[16..];
+    
+    let cipher = Aes256Gcm::new_from_slice(&key)?;
+    let plaintext = cipher
+        .decrypt(Nonce::from_slice(nonce_bytes), ciphertext)
+        .map_err(|_| anyhow::anyhow!("Decryption failed"))?;
+        
+    Ok(serde_json::from_slice(&plaintext)?)
+}
+
 pub fn save_vault(vault: &AppVault) -> anyhow::Result<()> {
     let path = get_vault_path();
-    let bytes = serde_json::to_vec_pretty(vault)?;
-    fs::write(path, bytes)?;
+    let key = get_encryption_key()?;
+    
+    let mut nonce_bytes = [0u8; 12];
+    rand::rngs::OsRng.fill_bytes(&mut nonce_bytes);
+    
+    let plaintext = serde_json::to_vec(vault)?;
+    let cipher = Aes256Gcm::new_from_slice(&key)?;
+    let ciphertext = cipher
+        .encrypt(Nonce::from_slice(&nonce_bytes), plaintext.as_ref())
+        .map_err(|e| anyhow::anyhow!("AES-GCM encrypt error: {}", e))?;
+        
+    let mut output = Vec::with_capacity(4 + 12 + ciphertext.len());
+    output.extend_from_slice(MAGIC_V2);
+    output.extend_from_slice(&nonce_bytes);
+    output.extend_from_slice(&ciphertext);
+    
+    fs::write(path, output)?;
     Ok(())
 }
 

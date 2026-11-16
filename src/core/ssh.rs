@@ -27,6 +27,11 @@ pub enum SshEvent {
         host_id: String,
         reason: String,
     },
+    HostKeyVerification {
+        session_key: String,
+        host_id: String,
+        fingerprint: String,
+    },
     TunnelLog {
         host_id: String,
         message: String,
@@ -60,6 +65,9 @@ impl ActiveSshSession {
 
 pub struct SshClientHandler {
     pub remote_forwards: Arc<Mutex<HashMap<u32, (String, u16, tokio::sync::watch::Receiver<bool>)>>>,
+    pub tx_events: mpsc::UnboundedSender<SshEvent>,
+    pub host_id: String,
+    pub session_key: String,
 }
 
 #[async_trait]
@@ -68,9 +76,30 @@ impl client::Handler for SshClientHandler {
 
     async fn check_server_key(
         &mut self,
-        _server_public_key: &russh_keys::key::PublicKey,
+        server_public_key: &russh_keys::key::PublicKey,
     ) -> Result<bool, Self::Error> {
-        Ok(true)
+        let fingerprint = server_public_key.fingerprint();
+        match russh_keys::check_known_hosts(&self.host_id, 22, server_public_key) {
+            Ok(true) => Ok(true),
+            Ok(false) => {
+                // Not known (TOFU)
+                let _ = self.tx_events.send(SshEvent::HostKeyVerification {
+                    session_key: self.session_key.clone(),
+                    host_id: self.host_id.clone(),
+                    fingerprint,
+                });
+                // For now, reject until UI handles this.
+                Ok(false)
+            }
+            Err(e) => {
+                // KeyChanged or other error
+                let _ = self.tx_events.send(SshEvent::Error {
+                    session_key: self.session_key.clone(),
+                    message: format!("Host key verification failed: {:?}", e),
+                });
+                Err(russh::Error::UnknownKey)
+            }
+        }
     }
 
     async fn server_channel_open_forwarded_tcpip(
@@ -140,6 +169,9 @@ pub fn spawn_live_ssh_connection(
         let remote_forwards = Arc::new(Mutex::new(HashMap::new()));
         let handler = SshClientHandler {
             remote_forwards: remote_forwards.clone(),
+            tx_events: tx_events.clone(),
+            host_id: host_id.clone(),
+            session_key: session_key.clone(),
         };
 
         let addr = format!("{}:{}", host, port);
