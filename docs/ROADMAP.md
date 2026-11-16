@@ -1,51 +1,71 @@
-# SUPERTERM — Implementation Roadmap & Execution Plan
+# SUPERTERM — Roadmap
 
-Rencana eksekusi pembangunan aplikasi **Superterm** dari fase pondasi hingga siap rilis di Windows, diikuti macOS dan Linux.
+Status per November 2026. Arah awal berbasis Tauri / WebView / xterm.js **ditinggalkan** dan diganti aplikasi 100% native Rust (`eframe` / `egui`).
 
 ---
 
-## Tahapan Milestone (Roadmap)
+## Selesai
 
-### Milestone 1: Arsitektur & Scaffold Proyek (Sedang Berjalan)
-- [x] Inisialisasi direktori proyek `Z:\ProjectsX\Experiments\Superterm`
-- [x] Desain Arsitektur Sistem Lengkap (`docs/ARCHITECTURE.md`)
-- [x] Spesifikasi Data Schema & Enkripsi Vault (`docs/DATA_SCHEMA.md`)
-- [x] Panduan Teknis SSH Tunneling & SOCKS5 (`docs/TUNNELING_GUIDE.md`)
-- [x] Scaffold Manifest Rust (`Cargo.toml`) dan Frontend (`package.json`, Vite, Tailwind, xterm.js)
-- [x] Mockup UI Interaktif Standalone (untuk memverifikasi layout, sidebar, terminal xterm, dan tunnel manager sebelum build binary)
+### Fondasi
+- [x] Aplikasi native Rust (`eframe` / `egui`, backend OpenGL), tanpa web tech
+- [x] Toolchain `x86_64-pc-windows-gnu`, build release ~5 MB dengan ikon tersemat
+- [x] GitHub Actions: build Windows dan macOS (Apple Silicon & Intel)
+- [x] Shutdown bersih (`on_exit`) agar tidak menggantung saat ditutup di macOS
 
-### Milestone 2: Persiapan Toolchain & Environment Windows
-- [ ] Pemasangan Rust Toolchain (`rustup`, `rustc`, `cargo` x86_64-pc-windows-msvc)
-- [ ] Pemasangan Microsoft C++ Build Tools (MSVC Linker & Windows SDK)
-- [ ] Konfigurasi WebView2 Runtime & Tauri CLI (`@tauri-apps/cli`)
+### SSH & Terminal
+- [x] SSH v2 async (`russh`), autentikasi password & private key
+- [x] Emulator VT100 + renderer sendiri, warna, scrollback, select / copy / paste
+- [x] Multi-tab per host (Connect in new tab), tab otomatis tertutup saat sesi SSH selesai
+- [x] Menu host: Connect, Connect in new tab, Disconnect (satu tab), Disconnect All Tabs, Edit, Duplicate, Rename, Export Connection, Delete
 
-### Milestone 3: Core SSH Engine & Terminal
-- [ ] Implementasi PTY async wrapper di Rust (`russh` + `tokio::sync::mpsc`)
-- [ ] Integrasi `xterm.js` dengan WebGL Addon & Fit Addon
-- [ ] Komunikasi bidirectional Tauri IPC Event: Keystrokes -> Rust SSH stdin; SSH stdout -> xterm display
-- [ ] Penanganan Terminal Resize (`cols`, `rows`) real-time
-- [ ] Otentikasi: Password, Private Key (PEM, OpenSSH, Ed25519), dan Passphrase
+### Tunneling
+- [x] Local (`-L`), Remote (`-R`), Dynamic SOCKS5 (`-D`)
+- [x] Auto-ON saat host terhubung, berhenti saat tab terakhir host ditutup
+- [x] Panel Port Forwarding: Start/Stop per tunnel, penghitung byte
 
-### Milestone 4: SSH Tunneling Engine (Local, Remote, SOCKS5)
-- [ ] Implementasi Static Local Forwarding (`-L`) dengan `TcpListener` lokal
-- [ ] Implementasi Static Remote Forwarding (`-R`) dengan `tcpip-forward` request
-- [ ] Implementasi Dynamic SOCKS5 Proxy Server (`-D`) kompatibel RFC 1928
-- [ ] UI Port Forwarding Dashboard (Live Toggle, Port Inspector, Byte Counter)
+### Host management
+- [x] Sidebar berfolder; rename folder, hapus folder kosong
+- [x] Editor host bertab (Connection / Advanced); dropdown folder + input folder baru
 
-### Milestone 5: Cross-Platform Encrypted Vault
-- [ ] Modul Rust `crypto.rs` (Argon2id Key Derivation + AES-256-GCM)
-- [ ] Penyimpanan lokal portable `.stvault` (bebas registry Windows, 100% kompatibel Mac & Linux)
-- [ ] CRUD Profile Host, Folder Grouping, Tagging, dan Pencarian Cepat di Left Sidebar
-- [ ] Setting kustomisasi font, ukuran, line-height, dan palet warna tema
+### Local Shell
+- [x] PowerShell / CMD (Windows), Terminal (macOS/Linux) di PTY sungguhan
+- [x] Balasan otomatis untuk query DSR / DA dari ConPTY
+- [x] Run as Administrator / Root
 
-### Milestone 6: Google OAuth & E2EE Cloud Sync
-- [ ] Rust OAuth 2.0 PKCE Flow dengan local HTTP loopback listener (`http://127.0.0.1:<port>/callback`)
-- [ ] Integrasi Google Drive `drive.appdata` REST API (Zero-server architecture)
-- [ ] Mekanisme sinkronisasi berkas vault terenkripsi (E2EE) antar laptop
-- [ ] Deteksi konflik revisi dan merger profil otomatis
+### Tools
+- [x] Ping, Traceroute, Port Scanner, DNS Lookup, DNS Whois, Network Interfaces
+- [x] SSH Key Generator, Password Vault
+- [x] SQL Client: MySQL & PostgreSQL, koneksi tersimpan, pilih tunnel, TLS (SChannel / Security.framework), hasil bertab dengan caption nama tabel, Edit / Re-run query, multi-sesi
+- [x] Note Vault: catatan multi-tab, tersimpan di vault, ikut ekspor `.stvault`
+- [x] Menu Cut / Copy / Paste / Select All di semua input teks
 
-### Milestone 7: Build, Packaging & Rilis Windows
-- [ ] Compile release optimized executable Windows (`superterm.exe`)
-- [ ] Pembuatan Installer MSI / NSIS Installer
-- [ ] Testing pada monitor Full HD (1080p), 2K, 4K, dan Ultrawide
-- [ ] Persiapan build cross-platform untuk macOS (.dmg, Universal Binary) dan Linux (.AppImage, .deb).
+### Vault & Sync
+- [x] Vault lokal (JSON) dengan default yang kompatibel ke belakang
+- [x] Ekspor/impor `.stvault` (Argon2id + AES-256-GCM)
+
+---
+
+## Berikutnya
+
+### Keamanan (prioritas)
+- [ ] Enkripsi `superterm.vault` di disk (sekarang JSON biasa, termasuk password)
+- [ ] Verifikasi host key SSH (`known_hosts`); saat ini semua host key diterima
+- [ ] Simpan secret di Windows Credential Manager / macOS Keychain
+
+### Menerapkan pengaturan yang sudah tersimpan
+- [ ] Jump host (ProxyJump)
+- [ ] Keepalive, compression, agent forwarding, auto-reconnect
+- [ ] Startup command & SFTP start directory
+- [ ] Autentikasi SSH agent dan keyboard-interactive
+
+### Fitur
+- [ ] SFTP browser
+- [ ] Sinkronisasi cloud otomatis (saat ini manual via file `.stvault`)
+- [ ] Tunnel otomatis bind ulang setelah SSH reconnect
+- [ ] Opsi isi-otomatis target Ping/Traceroute/Port Scanner bisa dimatikan
+
+### Distribusi
+- [ ] Installer Windows (MSI / NSIS)
+- [ ] macOS: code signing & notarization, `.dmg`
+- [ ] Verifikasi build macOS untuk TLS SQL Client (Security.framework)
+- [ ] Paket Linux (AppImage / .deb)

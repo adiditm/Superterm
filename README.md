@@ -1,73 +1,119 @@
-# Superterm 🚀
+# Superterm
 
-> **Pure Native Rust SSH Client & Tunneling Manager for Windows.**
-> 100% Rust Murni — **Zero Web Tech**, tanpa HTML, tanpa CSS, tanpa JavaScript, dan tanpa Chromium/WebView.
-
----
-
-## ✨ Keunggulan Pure Native Rust
-
-- **Kinerja Instan & Ringan**: Konsumsi memori hanya ~25-40 MB RAM (dibandingkan web/electron yang >200 MB).
-- **Direct GPU Rendering**: UI di-render langsung ke GPU (DirectX 12 / Vulkan / OpenGL) menggunakan `eframe` & `egui`.
-- **Single Native Binary**: Menghasilkan satu file `superterm.exe` mandiri tanpa ketergantungan runtime eksternal.
-- **Keamanan Maksimal**: Bebas dari risiko keamanan web (XSS, DOM exploits, Chromium zero-days).
+> **SSH client, tunneling manager, dan toolbox jaringan native untuk Windows & macOS.**
+> 100% Rust — tanpa HTML, CSS, JavaScript, Chromium, maupun WebView.
 
 ---
 
-## 🛠️ Fitur Fungsional
+## Keunggulan
 
-1. **SSH Interactive Terminal**:
-   - Asynchronous SSH v2 (`russh` / `ssh2` + `tokio`).
-   - Dukungan otentikasi Password, Private Key (Ed25519, RSA, PEM), Passphrase.
-   - PTY window resizing real-time.
-2. **SSH Tunneling (Port Forwarding & SOCKS5)**:
-   - **Static Local Forwarding (`-L`)**: Akses database remote langsung dari localhost.
-   - **Static Remote Forwarding (`-R`)**: Ekspos port lokal ke server remote.
-   - **Dynamic SOCKS5 Proxy Server (`-D`)**: Terintegrasi penuh (RFC 1928) dengan switch on/off instan.
-3. **Cross-Platform Encrypted Vault**:
-   - Enkripsi kuat **AES-256-GCM** dengan derivasi kunci **Argon2id**.
-   - Berkas `.stvault` portabel yang kompatibel penuh di Windows, macOS, dan Linux.
-4. **Kustomisasi Terminal**:
-   - Slider ukuran font dinamis (11px – 24px).
-   - Palet warna tema siap pakai (*Dracula*, *Tokyo Night*, *Nord*, *Monokai Pro*, *Cyberpunk*).
-5. **Left Sidebar Connection Tree**:
-   - Pengelompokan folder (*Production*, *Staging*, *Homelab*), filter pencarian instan, dan status indikator koneksi.
-6. **Google E2EE Cloud Sync**:
-   - Zero-Knowledge Client-Side Encryption disinkronkan ke **Google Drive AppData**.
+- **Native, satu file**: hasil build adalah satu executable mandiri (~5 MB) tanpa runtime eksternal.
+- **Rendering GPU langsung**: UI digambar lewat OpenGL (`eframe` / `egui`, backend `glow`).
+- **Tanpa permukaan serangan web**: tidak ada DOM, tidak ada XSS, tidak ada engine browser.
 
 ---
 
-## 📁 Struktur Kode Sumber Pure Rust
+## Fitur
 
-```
-Z:\ProjectsX\Experiments\Superterm\
-├── Cargo.toml                  # Rust Package Manifest & Dependencies
-├── docs/                       # Dokumentasi Teknis
-│   ├── ARCHITECTURE.md         # Arsitektur Native Rust Lengkap
-│   ├── DATA_SCHEMA.md          # Spesifikasi Skema JSON & Vault
-│   └── TUNNELING_GUIDE.md      # Panduan Teknis Port Forwarding & SOCKS5
-└── src/                        # 100% Rust Source Code
-    ├── main.rs                 # Native Windows Entry Point (eframe::run_native)
-    ├── ui/
-    │   ├── mod.rs
-    │   └── app.rs              # UI Native Rust (Sidebar, Terminal View, Tunnels, Settings)
-    └── core/
-        ├── mod.rs
-        ├── ssh.rs              # Asynchronous SSH Client & PTY Streaming
-        ├── tunnel.rs           # Local, Remote, & Dynamic SOCKS5 Proxy Server
-        └── vault.rs            # Portable AES-256-GCM + Argon2id Vault Storage
-```
+### 1. Hosts & SSH
+- Terminal SSH v2 interaktif (`russh` + `tokio`) dengan emulator VT100 sendiri, warna, scrollback, resize PTY real-time, serta select / copy / paste.
+- Autentikasi **password** dan **private key** (Ed25519, RSA, ECDSA; dengan passphrase).
+- Multi-tab: satu host bisa dibuka di beberapa tab sekaligus (**Connect in new tab**).
+- Sidebar berfolder: folder bisa di-rename dan dihapus lewat klik kanan (hapus hanya untuk folder kosong). Field Folder di editor host berupa dropdown folder yang ada, atau ketik nama folder baru.
+- Menu host (klik kanan atau tombol `...`): Connect, Connect in new tab, **Disconnect** (satu tab), **Disconnect All Tabs**, Edit, Duplicate, Rename, Export Connection (JSON), Delete.
+- Editor host bertab: *Connection* dan *Advanced*.
+
+### 2. SSH Tunneling
+- **Local** (`-L`), **Remote** (`-R`), dan **Dynamic SOCKS5** (`-D`, RFC 1928).
+- Tunnel **Auto-ON** otomatis aktif saat host terhubung, dan berhenti saat tab terakhir host itu ditutup.
+- Panel *Port Forwarding & Proxy*: Start/Stop per tunnel tanpa memutus SSH, dengan penghitung byte live.
+
+### 3. Local Shell
+- **PowerShell** dan **CMD** di Windows, **Terminal** (login shell) di macOS/Linux, berjalan di PTY sungguhan (ConPTY di Windows).
+- Opsi **Run as Administrator / Root** (Superterm di-restart dengan hak elevated). Tab elevated diberi label `(Administrator)` / `(Root)`.
+
+### 4. Tools
+| Tool | Fungsi |
+|---|---|
+| Ping, Traceroute, Port Scanner | Diagnostik jaringan |
+| DNS Lookup, DNS Whois | Termasuk ccTLD |
+| Network Interfaces | Daftar adapter lokal |
+| SSH Key Generator | Ed25519 / ECDSA-P256 ke `~/.ssh` |
+| Password Vault | Melihat & menyalin kredensial host |
+| **SQL Client** | MySQL & PostgreSQL, multi-sesi, hasil bertab |
+| **Note Vault** | Catatan multi-tab, ikut tersimpan di vault |
+
+**SQL Client**
+- Koneksi tersimpan di vault; host/port bisa diisi otomatis dari tunnel lokal lewat **Use tunnel...**
+- **TLS** lewat sistem operasi (SChannel di Windows, Security.framework di macOS), mode `prefer`: SSL dipakai bila server menawarkannya. Ini wajib untuk server dengan `pg_hba.conf` berjenis `hostssl`.
+- Setiap Execute membuka **tab hasil baru**. Caption tab adalah tabel pertama di query; klik kanan untuk Copy / Edit / Re-run. SELECT tampil sebagai grid (maks 1.000 baris), INSERT/UPDATE/DELETE menampilkan jumlah baris terdampak.
+- Beberapa database bisa dibuka bersamaan sebagai tab terpisah (**New SQL session**).
+
+### 5. Input teks
+Semua field teks di aplikasi punya menu klik kanan **Cut / Copy / Paste / Select All**. Field password hanya menyediakan Paste dan Select All, kecuali password sedang ditampilkan.
+
+### 6. Vault & Sync
+- Semua data (host, tunnel, catatan, koneksi SQL, pengaturan) disimpan di satu file vault lokal.
+- **Sync** = ekspor/impor file `.stvault` terenkripsi (**Argon2id + AES-256-GCM**) ke path pilihan Anda, misalnya folder Google Drive, OneDrive, atau USB. Belum ada sinkronisasi cloud otomatis.
+
+### 7. Tampilan
+- Mode Night / Day / Auto (mengikuti OS).
+- Tema terminal: Dracula, Tokyo Night, Nord, Monokai Pro, Cyberpunk, Daylight Clean, Solarized Light.
+- Ukuran font terminal 11–24 px dan zoom UI.
 
 ---
 
-## ⚡ Cara Kompilasi Menjadi Windows `.exe`
+## Lokasi data
 
-Setelah Rustup terpasang di Windows:
+| OS | Path |
+|---|---|
+| Windows | `%APPDATA%\Superterm\superterm.vault` |
+| macOS | `~/Library/Application Support/Superterm/superterm.vault` |
+| Linux | `~/.config/Superterm/superterm.vault` |
+
+> **Penting:** `superterm.vault` lokal berupa **JSON biasa (tidak terenkripsi)**, termasuk password. Yang terenkripsi hanya file `.stvault` hasil ekspor. Lindungi folder tersebut dengan izin akun OS Anda.
+
+Untuk reset total: tutup Superterm, cadangkan folder di atas, lalu hapus foldernya.
+
+---
+
+## Build
 
 ```powershell
 cd Z:\ProjectsX\Experiments\Superterm
 cargo build --release
 ```
 
-Berkas binary mandiri `superterm.exe` murni Rust akan terbentuk di:
-`target/release/superterm.exe`
+Hasil: `target/release/superterm.exe` (Windows) atau `target/release/superterm` (macOS/Linux).
+
+Proyek ini dibangun dengan toolchain `x86_64-pc-windows-gnu` tanpa compiler C, sehingga dependensi yang membutuhkan C (misalnya `ring` untuk rustls) sengaja dihindari. GitHub Actions (`.github/workflows/build.yml`) mem-build Windows dan macOS (Apple Silicon & Intel) secara otomatis.
+
+---
+
+## Struktur kode
+
+```
+Superterm/
+├── Cargo.toml
+├── build.rs / app.rc / app.ico      # Ikon & resource Windows
+├── docs/
+│   ├── ARCHITECTURE.md
+│   ├── DATA_SCHEMA.md
+│   ├── ROADMAP.md
+│   └── TUNNELING_GUIDE.md
+└── src/
+    ├── main.rs                      # Entry point (eframe::run_native)
+    ├── core/
+    │   ├── ssh.rs                   # Sesi SSH async & streaming PTY
+    │   ├── tunnel.rs                # Local / Remote / SOCKS5
+    │   ├── localshell.rs            # PowerShell / CMD / Terminal di PTY
+    │   ├── sqlclient.rs             # Driver MySQL & PostgreSQL (sqlx)
+    │   ├── tools.rs                 # Ping, DNS, Whois, port scan, keygen
+    │   └── vault.rs                 # Penyimpanan vault & .stvault terenkripsi
+    └── ui/
+        ├── app.rs                   # Shell UI: sidebar, tab, modal
+        ├── terminal.rs              # Emulator VT100 & renderer
+        └── tools_view.rs            # UI tools, SQL Client, Note Vault
+```
+
+Lihat [`docs/`](docs/) untuk detail arsitektur, skema data, dan tunneling.

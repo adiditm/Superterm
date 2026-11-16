@@ -54,7 +54,9 @@ Fitur Port Forwarding di Superterm mengimplementasikan standar spesifikasi SSHv2
 
 ## 3. Desain Kode Rust Tokio (Implementasi Ringkas)
 
-### A. Static Local Port Forwarding (`local.rs`)
+Semua jenis tunnel ada di satu berkas, `src/core/tunnel.rs`. Titik masuknya `spawn_tunnel(...)`, yang mengembalikan `TunnelRuntimeHandle` (`stop()` dan `bytes_transferred()`). Contoh di bawah adalah versi ringkas untuk menjelaskan alur, bukan salinan persis kodenya.
+
+### A. Static Local Port Forwarding
 ```rust
 use tokio::net::{TcpListener, TcpStream};
 use tokio::io::copy_bidirectional;
@@ -88,21 +90,43 @@ pub async fn start_local_tunnel(
 }
 ```
 
-### B. Dynamic SOCKS5 Proxy Server (`socks5.rs`)
+### B. Static Remote Port Forwarding
+1. Mengirim `tcpip-forward` ke server SSH untuk `bind_host:bind_port`.
+2. Saat server membuka channel `forwarded-tcpip`, handler SSH mencocokkan port-nya lalu menyambung ke `remote_host:remote_port` di sisi lokal.
+3. Saat tunnel dihentikan, `cancel-tcpip-forward` dikirim ke server.
+
+### C. Dynamic SOCKS5 Proxy Server
 Menggunakan parser protokol RFC 1928 ringan:
 1. Menerima byte `[0x05, NMETHODS, METHODS...]`.
-2. Menjawab `[0x05, 0x00]` (No authentication required).
-3. Membaca paket permintaan `[0x05, CMD=0x01, RSV=0x00, ATYP, ADDR, PORT]`.
-4. Menyambungkan socket channel `direct-tcpip` SSH ke destination address tersebut.
-5. Menjawab status sukses `[0x05, 0x00, 0x00, 0x01, 0,0,0,0, 0,0]`.
-6. Memulai bidirectional I/O copy via `tokio::io::copy_bidirectional`.
+2. Menjawab `[0x05, 0x00]` (tanpa autentikasi).
+3. Membaca permintaan `[0x05, CMD, RSV, ATYP, ADDR, PORT]`. Hanya `CMD = 0x01` (CONNECT) yang didukung; perintah lain dijawab `0x07` (command not supported).
+4. `ATYP` yang didukung: `0x01` IPv4, `0x03` nama domain, `0x04` IPv6.
+5. Membuka channel `direct-tcpip` SSH ke alamat tujuan.
+6. Menjawab sukses `[0x05, 0x00, 0x00, 0x01, 0,0,0,0, 0,0]`, atau `0x05` (connection refused) jika channel gagal dibuka.
+7. Menyalurkan data dua arah.
 
 ---
 
 ## 4. Tampilan UI Port Forwarding di Superterm
 
-Di frontend, setiap host memiliki tab / drawer **"Tunnels"**:
-- **Daftar Port Forward**: Menampilkan port lokal, target remote, dan tipe icon (`L`, `R`, `D`).
-- **Live Toggle**: Saklar hidup/mati cepat untuk setiap tunnel tanpa perlu memutus koneksi terminal SSH.
-- **Traffic Monitor**: Menampilkan kecepatan transfer (KB/s, MB/s) dan jumlah total bytes yang lewat.
-- **Auto-reconnect**: Jika koneksi SSH sempat putus (misal WiFi berubah), tunnel otomatis di-bind ulang saat SSH reconnect.
+Panel **Port Forwarding & Proxy** di sisi kanan:
+- **Daftar tunnel** per host, dengan filter *Selected Host* / *All Hosts*. Setiap tunnel menampilkan tipe (`LOCAL`, `REMOTE`, `DYNAMIC`), port lokal, target, nama host, dan status Online / Auto-ON.
+- **Start / Stop** per tunnel tanpa memutus terminal SSH.
+- **Penghitung byte**: total data yang sudah lewat, misalnya `Live (0.3 KB)`. Kecepatan transfer per detik belum ditampilkan.
+- **Auto-ON**: tunnel dengan `auto_start = true` aktif otomatis saat host terhubung, dan dihentikan saat tab terakhir host itu ditutup.
+
+Belum ada: bind ulang otomatis setelah SSH terputus. Opsi *auto-reconnect* di editor host sudah tersimpan, tapi belum diterapkan.
+
+---
+
+## 5. Contoh: database di balik bastion
+
+```
+PC (Superterm)                 Bastion (SSH)              Database
+127.0.0.1:15000  ── SSH -L ──►  bastion.example.com  ──►  10.0.0.5:5432
+```
+
+- Tunnel: `local`, bind `127.0.0.1:15000`, remote `10.0.0.5:5432`.
+- SQL Client terhubung ke **`127.0.0.1:15000`**, yaitu ujung lokal tunnel, bukan `10.0.0.5:5432`.
+- Database melihat koneksi datang dari IP bastion, bukan dari PC Anda. Aturan `pg_hba.conf` di server harus mengizinkan IP itu.
+- Jika aturannya `hostssl`, koneksi wajib terenkripsi. SQL Client menegosiasikan TLS secara otomatis (`sslmode=prefer`).
