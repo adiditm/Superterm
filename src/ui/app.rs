@@ -572,6 +572,23 @@ fn draw_single_server_icon(ui: &mut egui::Ui, frame_color: Color32, led_color: C
     );
 }
 
+pub struct PendingHostKeyPrompt {
+    pub session_key: String,
+    pub host: String,
+    pub port: u16,
+    pub key_type: String,
+    pub fingerprint: String,
+    pub reply: tokio::sync::oneshot::Sender<bool>,
+}
+
+pub struct PendingHostKeyMismatch {
+    pub session_key: String,
+    pub host: String,
+    pub port: u16,
+    pub fingerprint: String,
+    pub line: usize,
+}
+
 pub struct SupertermNativeApp {
     pub rt: tokio::runtime::Handle,
     pub tx_events: mpsc::UnboundedSender<SshEvent>,
@@ -608,6 +625,10 @@ pub struct SupertermNativeApp {
     pub password_prompt_new_tab: bool,
     pub password_prompt_input: String,
     pub password_prompt_save: bool,
+
+    // Host Key Verification State
+    pub pending_host_key_prompt: Option<PendingHostKeyPrompt>,
+    pub pending_host_key_mismatch: Option<PendingHostKeyMismatch>,
 
     // Rename & Export JSON Modals
     pub rename_host_modal: Option<(String, String)>,
@@ -775,6 +796,8 @@ impl SupertermNativeApp {
             password_prompt_new_tab: false,
             password_prompt_input: String::new(),
             password_prompt_save: true,
+            pending_host_key_prompt: None,
+            pending_host_key_mismatch: None,
             rename_host_modal: None,
             renaming_folder: None,
             folder_rename_buffer: String::new(),
@@ -1489,12 +1512,45 @@ impl SupertermNativeApp {
                         self.close_tab(&session_key);
                     }
                 }
-                SshEvent::HostKeyVerification {
+                SshEvent::HostKeyPrompt {
                     session_key,
-                    host_id,
+                    host,
+                    port,
+                    key_type,
                     fingerprint,
+                    reply,
                 } => {
-                    self.push_log(&session_key, format!("[!] Host key verification needed: {}", fingerprint));
+                    self.push_log(
+                        &session_key,
+                        format!("[!] Host key verification needed: {} ({})", key_type, fingerprint),
+                    );
+                    self.pending_host_key_prompt = Some(PendingHostKeyPrompt {
+                        session_key,
+                        host,
+                        port,
+                        key_type,
+                        fingerprint,
+                        reply,
+                    });
+                }
+                SshEvent::HostKeyMismatch {
+                    session_key,
+                    host,
+                    port,
+                    fingerprint,
+                    line,
+                } => {
+                    self.push_log(
+                        &session_key,
+                        format!("[!] WARNING: Host key mismatch on line {} of known_hosts!", line),
+                    );
+                    self.pending_host_key_mismatch = Some(PendingHostKeyMismatch {
+                        session_key,
+                        host,
+                        port,
+                        fingerprint,
+                        line,
+                    });
                 }
                 SshEvent::TunnelLog { host_id, message } => {
                     self.push_log_for_host(&host_id, message);
@@ -3326,6 +3382,8 @@ impl eframe::App for SupertermNativeApp {
         // CENTRAL PANEL: ACTIVE TAB WORKSPACE (SSH TERMINAL OR TOOL)
         // =========================================================================
         let any_modal_open = self.password_prompt_host_id.is_some()
+            || self.pending_host_key_prompt.is_some()
+            || self.pending_host_key_mismatch.is_some()
             || self.confirm_delete_host.is_some()
             || self.confirm_delete_tunnel.is_some()
             || self.rename_host_modal.is_some()
@@ -3509,6 +3567,161 @@ impl eframe::App for SupertermNativeApp {
                             );
                         });
                     });
+            }
+        }
+
+        // =========================================================================
+        // MODAL: SSH HOST KEY VERIFICATION (TOFU)
+        // =========================================================================
+        if self.pending_host_key_prompt.is_some() {
+            let mut choice = None;
+            egui::Window::new("SSH Host Key Verification")
+                .id(egui::Id::new("host_key_prompt_window"))
+                .collapsible(false)
+                .resizable(false)
+                .fixed_size(Vec2::new(480.0_f32, 230.0_f32))
+                .show(ctx, |ui| {
+                    if let Some(prompt) = &self.pending_host_key_prompt {
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new("🔐").size(24.0_f32));
+                            ui.vertical(|ui| {
+                                ui.label(
+                                    RichText::new("The authenticity of host can't be established.")
+                                        .color(text_primary)
+                                        .strong()
+                                        .size(13.0_f32),
+                                );
+                                ui.label(
+                                    RichText::new(format!("{}:{}", prompt.host, prompt.port))
+                                        .color(accent_blue)
+                                        .monospace()
+                                        .size(12.0_f32),
+                                );
+                            });
+                        });
+
+                        ui.add_space(8.0_f32);
+                        ui.label(
+                            RichText::new(format!("Key Type: {}", prompt.key_type))
+                                .color(text_secondary)
+                                .size(11.5_f32),
+                        );
+                        ui.label(
+                            RichText::new("Key Fingerprint (SHA256):")
+                                .color(text_secondary)
+                                .size(11.5_f32),
+                        );
+                        ui.add(
+                            egui::TextEdit::singleline(&mut prompt.fingerprint.clone())
+                                .font(egui::TextStyle::Monospace)
+                                .desired_width(f32::INFINITY)
+                                .interactive(false),
+                        );
+
+                        ui.add_space(6.0_f32);
+                        ui.label(
+                            RichText::new("Are you sure you want to continue connecting and save this key to known_hosts?")
+                                .color(text_secondary)
+                                .size(11.0_f32),
+                        );
+
+                        ui.add_space(10.0_f32);
+                        ui.horizontal(|ui| {
+                            if ui
+                                .add(
+                                    egui::Button::new(
+                                        RichText::new("Trust & Connect")
+                                            .color(Color32::WHITE)
+                                            .strong(),
+                                    )
+                                    .fill(Color32::from_rgb(22, 163, 74)),
+                                )
+                                .clicked()
+                            {
+                                choice = Some(true);
+                            }
+
+                            if ui.button("Cancel").clicked() {
+                                choice = Some(false);
+                            }
+                        });
+                    }
+                });
+
+            if let Some(accept) = choice {
+                if let Some(prompt) = self.pending_host_key_prompt.take() {
+                    let _ = prompt.reply.send(accept);
+                }
+            }
+        }
+
+        // =========================================================================
+        // MODAL: SECURITY WARNING - HOST KEY MISMATCH
+        // =========================================================================
+        if self.pending_host_key_mismatch.is_some() {
+            let mut close_modal = false;
+            egui::Window::new("⚠️ SECURITY WARNING: Host Key Changed!")
+                .id(egui::Id::new("host_key_mismatch_window"))
+                .collapsible(false)
+                .resizable(false)
+                .fixed_size(Vec2::new(500.0_f32, 230.0_f32))
+                .show(ctx, |ui| {
+                    if let Some(mismatch) = &self.pending_host_key_mismatch {
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new("🚨").size(24.0_f32));
+                            ui.vertical(|ui| {
+                                ui.label(
+                                    RichText::new("POTENTIAL MAN-IN-THE-MIDDLE ATTACK DETECTED!")
+                                        .color(Color32::from_rgb(239, 68, 68))
+                                        .strong()
+                                        .size(13.0_f32),
+                                );
+                                ui.label(
+                                    RichText::new(format!("Host: {}:{}", mismatch.host, mismatch.port))
+                                        .color(text_primary)
+                                        .size(12.0_f32),
+                                );
+                            });
+                        });
+
+                        ui.add_space(8.0_f32);
+                        ui.label(
+                            RichText::new(format!(
+                                "The host key received from the server differs from the key recorded in your known_hosts file (line {}).",
+                                mismatch.line
+                            ))
+                            .color(text_secondary)
+                            .size(11.5_f32),
+                        );
+                        ui.add_space(4.0_f32);
+                        ui.label(
+                            RichText::new(format!("New Fingerprint: {}", mismatch.fingerprint))
+                                .color(Color32::from_rgb(239, 68, 68))
+                                .monospace()
+                                .size(11.0_f32),
+                        );
+                        ui.add_space(6.0_f32);
+                        ui.label(
+                            RichText::new("The connection has been aborted for your safety. If the server was recently reinstalled, please update your known_hosts file.")
+                                .color(text_secondary)
+                                .size(11.0_f32),
+                        );
+
+                        ui.add_space(10.0_f32);
+                        if ui
+                            .add(
+                                egui::Button::new(RichText::new("I Understand / Close").color(Color32::WHITE))
+                                    .fill(btn_neutral_bg),
+                            )
+                            .clicked()
+                        {
+                            close_modal = true;
+                        }
+                    }
+                });
+
+            if close_modal {
+                self.pending_host_key_mismatch = None;
             }
         }
 

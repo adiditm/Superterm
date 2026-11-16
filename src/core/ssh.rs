@@ -27,10 +27,20 @@ pub enum SshEvent {
         host_id: String,
         reason: String,
     },
-    HostKeyVerification {
+    HostKeyPrompt {
         session_key: String,
-        host_id: String,
+        host: String,
+        port: u16,
+        key_type: String,
         fingerprint: String,
+        reply: tokio::sync::oneshot::Sender<bool>,
+    },
+    HostKeyMismatch {
+        session_key: String,
+        host: String,
+        port: u16,
+        fingerprint: String,
+        line: usize,
     },
     TunnelLog {
         host_id: String,
@@ -66,7 +76,8 @@ impl ActiveSshSession {
 pub struct SshClientHandler {
     pub remote_forwards: Arc<Mutex<HashMap<u32, (String, u16, tokio::sync::watch::Receiver<bool>)>>>,
     pub tx_events: mpsc::UnboundedSender<SshEvent>,
-    pub host_id: String,
+    pub host: String,
+    pub port: u16,
     pub session_key: String,
 }
 
@@ -79,23 +90,53 @@ impl client::Handler for SshClientHandler {
         server_public_key: &russh_keys::key::PublicKey,
     ) -> Result<bool, Self::Error> {
         let fingerprint = server_public_key.fingerprint();
-        match russh_keys::check_known_hosts(&self.host_id, 22, server_public_key) {
-            Ok(true) => Ok(true),
+        let key_type = server_public_key.name().to_string();
+
+        match russh_keys::check_known_hosts(&self.host, self.port, server_public_key) {
+            Ok(true) => {
+                // Host key matches known_hosts
+                Ok(true)
+            }
             Ok(false) => {
-                // Not known (TOFU)
-                let _ = self.tx_events.send(SshEvent::HostKeyVerification {
+                // Unknown host key: Trust On First Use (TOFU) prompt to user
+                let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
+                let _ = self.tx_events.send(SshEvent::HostKeyPrompt {
                     session_key: self.session_key.clone(),
-                    host_id: self.host_id.clone(),
+                    host: self.host.clone(),
+                    port: self.port,
+                    key_type,
                     fingerprint,
+                    reply: reply_tx,
                 });
-                // For now, reject until UI handles this.
-                Ok(false)
+
+                match reply_rx.await {
+                    Ok(true) => {
+                        // User trusted host key: save to known_hosts
+                        if let Err(e) = russh_keys::learn_known_hosts(&self.host, self.port, server_public_key) {
+                            eprintln!("Warning: failed to write to known_hosts: {:?}", e);
+                        }
+                        Ok(true)
+                    }
+                    _ => {
+                        // User rejected or canceled
+                        Ok(false)
+                    }
+                }
+            }
+            Err(russh_keys::Error::KeyChanged { line }) => {
+                let _ = self.tx_events.send(SshEvent::HostKeyMismatch {
+                    session_key: self.session_key.clone(),
+                    host: self.host.clone(),
+                    port: self.port,
+                    fingerprint,
+                    line,
+                });
+                Err(russh::Error::UnknownKey)
             }
             Err(e) => {
-                // KeyChanged or other error
                 let _ = self.tx_events.send(SshEvent::Error {
                     session_key: self.session_key.clone(),
-                    message: format!("Host key verification failed: {:?}", e),
+                    message: format!("Host key verification error: {:?}", e),
                 });
                 Err(russh::Error::UnknownKey)
             }
@@ -170,7 +211,8 @@ pub fn spawn_live_ssh_connection(
         let handler = SshClientHandler {
             remote_forwards: remote_forwards.clone(),
             tx_events: tx_events.clone(),
-            host_id: host_id.clone(),
+            host: host.clone(),
+            port,
             session_key: session_key.clone(),
         };
 
