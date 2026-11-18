@@ -1,5 +1,7 @@
 # Superterm
 
+**Bahasa Indonesia** | [English](README.en.md)
+
 > **SSH client, tunneling manager, dan toolbox jaringan native untuk Windows & macOS.**
 > 100% Rust — tanpa HTML, CSS, JavaScript, Chromium, maupun WebView.
 
