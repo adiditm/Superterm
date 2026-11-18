@@ -592,6 +592,10 @@ pub fn render_terminal_viewport(
                         let text = emu.extract_selected_text();
                         copy_text_to_clipboard(&text);
                         emu.clear_selection();
+                    } else {
+                        emu.clear_selection();
+                        emu.parser.screen_mut().set_scrollback(0);
+                        actions.bytes_to_send.push(0x03);
                     }
                 }
                 egui::Event::Text(text) => {
