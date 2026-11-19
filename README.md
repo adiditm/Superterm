@@ -15,7 +15,8 @@ Standalone binaries ready to run are available on [GitHub Releases](https://gith
 | **macOS** | Intel | [Superterm-macos-x86_64.zip](https://github.com/adiditm/Superterm/releases/latest) | macOS 15.0+ |
 | **Linux** | ARM64 | [Superterm-linux-arm64.tar.gz](https://github.com/adiditm/Superterm/releases/latest) | glibc 2.17+ |
 | **Linux** | Intel/AMD64 | [Superterm-linux-x86_64.tar.gz](https://github.com/adiditm/Superterm/releases/latest) | glibc 2.17+ |
-| **Windows** | ARM64 | [Superterm-windows-arm64.zip](https://github.com/adiditm/Superterm/releases/latest) | Windows 10/11 |
+| **Windows** | x86_64 (64-bit) | [Superterm-windows-x86_64.zip](https://github.com/adiditm/Superterm/releases/latest) | Windows 10/11 |
+| **Windows** | ARM64 | [Superterm-windows-arm64.zip](https://github.com/adiditm/Superterm/releases/latest) | Windows 10/11 ARM64 |
 
 *No installation required. Just extract and run.*
 
