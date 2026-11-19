@@ -1,71 +1,85 @@
 # Superterm
 
-**Bahasa Indonesia** | [English](README.en.md)
+**English** | [Bahasa Indonesia](README.id.md)
 
-> **SSH client, tunneling manager, dan toolbox jaringan native untuk Windows & macOS.**
-> 100% Rust — tanpa HTML, CSS, JavaScript, Chromium, maupun WebView.
+> **Native SSH client, tunneling manager, and network toolbox for Windows, macOS, & Linux.**
+> 100% Pure Rust - zero HTML, CSS, JavaScript, Chromium, or WebView.
+
+## Download
+
+Standalone binaries ready to run are available on [GitHub Releases](https://github.com/adiditm/Superterm/releases/latest):
+
+| Platform | Architecture | Package | Description |
+|---|---|---|---|
+| **macOS** | Apple Silicon | [Superterm-macos-arm64.zip](https://github.com/adiditm/Superterm/releases/latest) | macOS 11.0+ |
+| **macOS** | Intel | [Superterm-macos-x86_64.zip](https://github.com/adiditm/Superterm/releases/latest) | macOS 15.0+ |
+| **Linux** | ARM64 | [Superterm-linux-arm64.tar.gz](https://github.com/adiditm/Superterm/releases/latest) | glibc 2.17+ |
+| **Linux** | Intel/AMD64 | [Superterm-linux-x86_64.tar.gz](https://github.com/adiditm/Superterm/releases/latest) | glibc 2.17+ |
+| **Windows** | ARM64 | [Superterm-windows-arm64.zip](https://github.com/adiditm/Superterm/releases/latest) | Windows 10/11 |
+
+*No installation required. Just extract and run.*
 
 ---
 
-## Keunggulan
+## Highlights
 
-- **Native, satu file**: hasil build adalah satu executable mandiri (~5 MB) tanpa runtime eksternal.
-- **Rendering GPU langsung**: UI digambar lewat OpenGL (`eframe` / `egui`, backend `glow`).
-- **Tanpa permukaan serangan web**: tidak ada DOM, tidak ada XSS, tidak ada engine browser.
+- **Native, single file**: Build produces a standalone executable (~5 MB) with no external runtimes or framework dependencies.
+- **Direct GPU rendering**: UI rendered via OpenGL (`eframe` / `egui`, with `glow` backend).
+- **Zero web attack surface**: No DOM, no XSS vectors, no embedded browser engine.
 
 ---
 
-## Fitur
+## Features
 
 ### 1. Hosts & SSH
-- Terminal SSH v2 interaktif (`russh` + `tokio`) dengan emulator VT100 sendiri, warna, scrollback, resize PTY real-time, serta select / copy / paste.
-- Autentikasi **password** dan **private key** (Ed25519, RSA, ECDSA; dengan passphrase).
-- Multi-tab: satu host bisa dibuka di beberapa tab sekaligus (**Connect in new tab**).
-- Sidebar berfolder: folder bisa di-rename dan dihapus lewat klik kanan (hapus hanya untuk folder kosong). Field Folder di editor host berupa dropdown folder yang ada, atau ketik nama folder baru.
-- Menu host (klik kanan atau tombol `...`): Connect, Connect in new tab, **Disconnect** (satu tab), **Disconnect All Tabs**, Edit, Duplicate, Rename, Export Connection (JSON), Delete.
-- Editor host bertab: *Connection* dan *Advanced*.
+- Interactive SSH v2 terminal (`russh` + `tokio`) with custom VT100 emulator, color support, scrollback, real-time PTY resizing, and select / copy / paste.
+- Authentication via **password** and **private key** (Ed25519, RSA, ECDSA; passphrase supported).
+- Multi-tab support: open multiple tabs for a single host (**Connect in new tab**).
+- Foldered sidebar: categorize connections in folders. Rename and delete via right-click (deletion only allowed on empty folders). Host editor offers existing folders via dropdown or new custom folder creation.
+- Host menu (right-click or `...` button): Connect, Connect in new tab, **Disconnect** (single tab), **Disconnect All Tabs**, Edit, Duplicate, Rename, Export Connection (JSON), Delete.
+- Tabbed host editor: *Connection* and *Advanced* configurations.
 
 ### 2. SSH Tunneling
-- **Local** (`-L`), **Remote** (`-R`), dan **Dynamic SOCKS5** (`-D`, RFC 1928).
-- Tunnel **Auto-ON** otomatis aktif saat host terhubung, dan berhenti saat tab terakhir host itu ditutup.
-- Panel *Port Forwarding & Proxy*: Start/Stop per tunnel tanpa memutus SSH, dengan penghitung byte live.
+- **Local** (`-L`), **Remote** (`-R`), and **Dynamic SOCKS5** (`-D`, RFC 1928).
+- **Auto-ON** tunnels automatically start upon host connection and terminate when the last session tab for that host is closed.
+- *Port Forwarding & Proxy* panel: Start/Stop individual tunnels on-the-fly without dropping the SSH session, with live byte counters.
 
 ### 3. Local Shell
-- **PowerShell** dan **CMD** di Windows, **Terminal** (login shell) di macOS/Linux, berjalan di PTY sungguhan (ConPTY di Windows).
-- Opsi **Run as Administrator / Root** (Superterm di-restart dengan hak elevated). Tab elevated diberi label `(Administrator)` / `(Root)`.
+- **PowerShell** and **CMD** on Windows, **Terminal** (login shell) on macOS/Linux, running on real PTYs (ConPTY on Windows).
+- **Run as Administrator / Root** option (Superterm relaunches with elevated privileges). Elevated tabs are distinctively badged `(Administrator)` / `(Root)`.
 
 ### 4. Tools
-| Tool | Fungsi |
+| Tool | Description |
 |---|---|
-| Ping, Traceroute, Port Scanner | Diagnostik jaringan |
-| DNS Lookup, DNS Whois | Termasuk ccTLD |
-| Network Interfaces | Daftar adapter lokal |
-| SSH Key Generator | Ed25519 / ECDSA-P256 ke `~/.ssh` |
-| Password Vault | Melihat & menyalin kredensial host |
-| **SQL Client** | MySQL & PostgreSQL, multi-sesi, hasil bertab |
-| **Note Vault** | Catatan multi-tab, ikut tersimpan di vault |
+| Ping, Traceroute, Port Scanner | Network diagnostics & troubleshooting |
+| DNS Lookup, DNS Whois | Domain intelligence including ccTLD |
+| Network Interfaces | Local adapter & IP address listing |
+| SSH Key Generator | Generate Ed25519 / ECDSA-P256 keys directly to `~/.ssh` |
+| Password Vault | View and copy saved host credentials |
+| **SQL Client** | MySQL & PostgreSQL, multi-session, tabbed results |
+| **Note Vault** | Multi-tab notes persisted inside vault |
 
 **SQL Client**
-- Koneksi tersimpan di vault; host/port bisa diisi otomatis dari tunnel lokal lewat **Use tunnel...**
-- **TLS** lewat sistem operasi (SChannel di Windows, Security.framework di macOS), mode `prefer`: SSL dipakai bila server menawarkannya. Ini wajib untuk server dengan `pg_hba.conf` berjenis `hostssl`.
-- Setiap Execute membuka **tab hasil baru**. Caption tab adalah tabel pertama di query; klik kanan untuk Copy / Edit / Re-run. SELECT tampil sebagai grid (maks 1.000 baris), INSERT/UPDATE/DELETE menampilkan jumlah baris terdampak.
-- Beberapa database bisa dibuka bersamaan sebagai tab terpisah (**New SQL session**).
+- Saved connections in vault; host/port can auto-fill from an active local tunnel via **Use tunnel...**
+- **TLS** via operating system security layer (SChannel on Windows, Security.framework on macOS, native-tls/OpenSSL on Linux), mode `prefer`: SSL is used if offered by server (essential for servers enforcing `hostssl` in `pg_hba.conf`).
+- Each execution opens a **new result tab**. Tab caption reflects the first queried table; right-click to Copy / Edit / Re-run. SELECT queries display as interactive data grids (up to 1,000 rows); INSERT/UPDATE/DELETE report affected row counts.
+- Multiple database connections can run concurrently as independent tabs (**New SQL session**).
 
-### 5. Input teks
-Semua field teks di aplikasi punya menu klik kanan **Cut / Copy / Paste / Select All**. Field password hanya menyediakan Paste dan Select All, kecuali password sedang ditampilkan.
+### 5. Text Input
+All text fields in the application provide right-click context menus with **Cut / Copy / Paste / Select All**. Password inputs safely restrict actions to Paste and Select All unless the reveal password toggle is enabled.
 
 ### 6. Vault & Sync
-- Semua data (host, tunnel, catatan, koneksi SQL, pengaturan) disimpan di satu file vault lokal.
-- **Sync** = ekspor/impor file `.stvault` terenkripsi (**Argon2id + AES-256-GCM**) ke path pilihan Anda, misalnya folder Google Drive, OneDrive, atau USB. Belum ada sinkronisasi cloud otomatis.
+- All application data (hosts, tunnels, notes, SQL connections, preferences) is stored in a single local vault file.
+- **Sync** = Export and import encrypted `.stvault` files (**Argon2id + AES-256-GCM**) to any directory of your choice (e.g. Google Drive, OneDrive, or local backup drives).
 
-### 7. Tampilan
-- Mode Night / Day / Auto (mengikuti OS).
-- Tema terminal: Dracula, Tokyo Night, Nord, Monokai Pro, Cyberpunk, Daylight Clean, Solarized Light.
-- Ukuran font terminal 11–24 px dan zoom UI.
+### 7. Appearance & Customization
+- Night / Day / Auto modes (respects system preferences).
+- Terminal themes: Dracula, Tokyo Night, Nord, Monokai Pro, Cyberpunk, Daylight Clean, Solarized Light.
+- Configurable terminal font size (11-24 px) and global UI zoom scaling.
 
 ---
 
-## Lokasi data
+## Data Storage Locations
 
 | OS | Path |
 |---|---|
@@ -73,49 +87,42 @@ Semua field teks di aplikasi punya menu klik kanan **Cut / Copy / Paste / Select
 | macOS | `~/Library/Application Support/Superterm/superterm.vault` |
 | Linux | `~/.config/Superterm/superterm.vault` |
 
-> **Penting:** `superterm.vault` lokal berupa **JSON biasa (tidak terenkripsi)**, termasuk password. Yang terenkripsi hanya file `.stvault` hasil ekspor. Lindungi folder tersebut dengan izin akun OS Anda.
-
-Untuk reset total: tutup Superterm, cadangkan folder di atas, lalu hapus foldernya.
-
 ---
 
-## Build
+## Building from Source
 
-```powershell
-cd Z:\ProjectsX\Experiments\Superterm
+```bash
 cargo build --release
 ```
 
-Hasil: `target/release/superterm.exe` (Windows) atau `target/release/superterm` (macOS/Linux).
-
-Proyek ini dibangun dengan toolchain `x86_64-pc-windows-gnu` tanpa compiler C, sehingga dependensi yang membutuhkan C (misalnya `ring` untuk rustls) sengaja dihindari. GitHub Actions (`.github/workflows/build.yml`) mem-build Windows dan macOS (Apple Silicon & Intel) secara otomatis.
+Binary outputs: `target/release/superterm.exe` (Windows) or `target/release/superterm` (macOS/Linux).
 
 ---
 
-## Struktur kode
+## Source Tree Overview
 
 ```
 Superterm/
-├── Cargo.toml
-├── build.rs / app.rc / app.ico      # Ikon & resource Windows
-├── docs/
-│   ├── ARCHITECTURE.md
-│   ├── DATA_SCHEMA.md
-│   ├── ROADMAP.md
-│   └── TUNNELING_GUIDE.md
-└── src/
-    ├── main.rs                      # Entry point (eframe::run_native)
-    ├── core/
-    │   ├── ssh.rs                   # Sesi SSH async & streaming PTY
-    │   ├── tunnel.rs                # Local / Remote / SOCKS5
-    │   ├── localshell.rs            # PowerShell / CMD / Terminal di PTY
-    │   ├── sqlclient.rs             # Driver MySQL & PostgreSQL (sqlx)
-    │   ├── tools.rs                 # Ping, DNS, Whois, port scan, keygen
-    │   └── vault.rs                 # Penyimpanan vault & .stvault terenkripsi
-    └── ui/
-        ├── app.rs                   # Shell UI: sidebar, tab, modal
-        ├── terminal.rs              # Emulator VT100 & renderer
-        └── tools_view.rs            # UI tools, SQL Client, Note Vault
+|-- Cargo.toml
+|-- build.rs / app.rc / app.ico      # Windows metadata & application icons
+|-- docs/
+|   |-- ARCHITECTURE.md
+|   |-- DATA_SCHEMA.md
+|   |-- ROADMAP.md
+|   `-- TUNNELING_GUIDE.md
+`-- src/
+    |-- main.rs                      # Application entry point (eframe::run_native)
+    |-- core/
+    |   |-- ssh.rs                   # Async SSH sessions & PTY streaming
+    |   |-- tunnel.rs                # Local / Remote / SOCKS5 proxy engine
+    |   |-- localshell.rs            # PowerShell / CMD / Terminal in native PTY
+    |   |-- sqlclient.rs             # MySQL & PostgreSQL driver integration (sqlx)
+    |   |-- tools.rs                 # Ping, DNS, Whois, port scan, keygen
+    |   `-- vault.rs                 # Local vault storage & encrypted .stvault import/export
+    `-- ui/
+        |-- app.rs                   # Main UI shell: sidebar, tabs, modals, menus
+        |-- terminal.rs              # VT100 terminal emulator & UI renderer
+        `-- tools_view.rs            # Diagnostics UI, SQL Client, & Note Vault
 ```
 
-Lihat [`docs/`](docs/) untuk detail arsitektur, skema data, dan tunneling.
+Refer to [`docs/`](docs/) for detailed architecture, data schema, and tunneling documentation.
