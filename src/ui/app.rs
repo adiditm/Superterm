@@ -5068,11 +5068,19 @@ impl eframe::App for SupertermNativeApp {
         // MODAL: SYNC ACCOUNT & CROSS-PLATFORM ENCRYPTED VAULT (.stvault)
         // =========================================================================
         if self.show_sync_modal {
+            const SYNC_DIALOG_W: f32 = 540.0_f32;
+            const SYNC_DIALOG_H: f32 = 360.0_f32;
+            const SYNC_CONTENT_W: f32 = SYNC_DIALOG_W - 24.0_f32;
+
             egui::Window::new("Sync Account & Encrypted Vault")
+                .id(egui::Id::new("sync_account_vault_modal"))
                 .collapsible(false)
                 .resizable(false)
-                .default_size(Vec2::new(520.0_f32, 340.0_f32))
+                .fixed_size(Vec2::new(SYNC_DIALOG_W, SYNC_DIALOG_H))
                 .show(ctx, |ui| {
+                    ui.set_width(SYNC_CONTENT_W);
+                    ui.set_max_width(SYNC_CONTENT_W);
+
                     ui.heading(RichText::new("Account & Cross-Platform E2EE Sync").color(text_primary));
                     ui.label(
                         RichText::new("Configure your Google sync email and export/import AES-256-GCM + Argon2id encrypted .stvault files across Windows, macOS, and Linux.")
@@ -5110,8 +5118,8 @@ impl eframe::App for SupertermNativeApp {
                     ui.label(RichText::new("Encrypted Portable Backup (.stvault):").color(text_primary).strong());
                     ui.label(RichText::new("Vault File Path (e.g. inside your Google Drive / OneDrive folder):").size(11.0_f32).color(text_secondary));
                     ui.horizontal(|ui| {
-                        let btn_width = 205.0_f32;
-                        let edit_width = (ui.available_width() - btn_width).max(160.0_f32);
+                        const BTN_W: f32 = 210.0_f32;
+                        let edit_width = (SYNC_CONTENT_W - BTN_W - 12.0_f32).max(160.0_f32);
                         MenuEdit::single("sync_file_path")
                             .width(edit_width)
                             .show(ui, &mut self.sync_file_path);
@@ -5177,7 +5185,7 @@ impl eframe::App for SupertermNativeApp {
                     ui.label(RichText::new("Master Encryption Password:").size(11.0_f32).color(text_secondary));
                     MenuEdit::single("sync_master_password")
     .hint("Enter master password for AES-256-GCM...")
-    .width(f32::INFINITY)
+    .width(SYNC_CONTENT_W)
     .password()
     .show(ui, &mut self.sync_master_password);
 
