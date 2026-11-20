@@ -1,7 +1,7 @@
-# Superterm v0.1.1 release binaries
+# Superterm v0.1.2 release binaries
 
-Built from commit `b56275b` (`main`) on **2026-11-20 16:30 WIB** by the
-multi-arch CI workflow: <https://github.com/adiditm/Superterm/actions/runs/44711331906>
+Built from commit `9b5b75c` (`main`) on **2026-11-20 17:05 WIB** by the
+multi-arch CI workflow: <https://github.com/adiditm/Superterm/actions/runs/44716120053>
 
 Every binary was produced with `cargo build --release` (`opt-level = "z"`,
 LTO, `strip`, `panic = "abort"`) on a native runner for its platform.
@@ -15,9 +15,14 @@ LTO, `strip`, `panic = "abort"`) on a native runner for its platform.
 | macOS | Intel x86_64 | `macos-x86_64/Superterm.app` | 5.1 MB |
 | macOS | Apple Silicon arm64 | `macos-arm64/Superterm.app` | 4.4 MB |
 
-Changes since v0.1.0: external clipboard copy/paste on Linux (Wayland and
-X11), native Browse Folder / File dialogs for the vault path, and modal /
-input width locking that stops the window from growing without bound.
+`v0.1.2` is a rebuild of the same source as `v0.1.1`; no behaviour change.
+Features since `v0.1.0`:
+
+- Sync: native **Browse Folder** and **File** dialogs for the export/import
+  `.stvault` path (no more typing the path by hand).
+- Clipboard: external copy/paste works on Linux (Wayland and X11).
+- Sync: modal and input widths are locked so the window no longer grows
+  without bound while moving the mouse.
 
 Verify the downloads with:
 
