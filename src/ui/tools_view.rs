@@ -841,9 +841,7 @@ pub fn render_tool_workspace(
                                 .width(480.0_f32)
                                 .show(ui, &mut pk_copy);
                             if ui.button("Copy Public Key").clicked() {
-                                if let Ok(mut cb) = arboard::Clipboard::new() {
-                                    let _ = cb.set_text(pub_key.clone());
-                                }
+                                crate::ui::terminal::copy_text_to_clipboard(&pub_key);
                             }
                         });
                     }
@@ -864,9 +862,7 @@ pub fn render_tool_workspace(
                                 ui.label(RichText::new(name).strong().color(accent_purple));
                                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                     if ui.button("Copy .pub").clicked() {
-                                        if let Ok(mut cb) = arboard::Clipboard::new() {
-                                            let _ = cb.set_text(pub_content.clone());
-                                        }
+                                        crate::ui::terminal::copy_text_to_clipboard(&pub_content);
                                     }
                                 });
                             });
@@ -889,10 +885,8 @@ pub fn render_tool_workspace(
                         ui.label(RichText::new(get_vault_path().display().to_string()).monospace().size(11.5_f32).color(accent_blue));
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             if ui.button("Copy Vault Path").clicked() {
-                                if let Ok(mut cb) = arboard::Clipboard::new() {
-                                    let _ = cb.set_text(get_vault_path().display().to_string());
-                                    tools.vault_notice = Some("Vault path copied to clipboard.".to_string());
-                                }
+                                crate::ui::terminal::copy_text_to_clipboard(&get_vault_path().display().to_string());
+                                tools.vault_notice = Some("Vault path copied to clipboard.".to_string());
                             }
                         });
                     });
@@ -920,10 +914,8 @@ pub fn render_tool_workspace(
                                     if let Some(pwd) = &p.password {
                                         if !pwd.is_empty() {
                                             if ui.button("Copy Password").clicked() {
-                                                if let Ok(mut cb) = arboard::Clipboard::new() {
-                                                    let _ = cb.set_text(pwd.clone());
-                                                    tools.vault_notice = Some(format!("Copied password for '{}'.", p.name));
-                                                }
+                                                crate::ui::terminal::copy_text_to_clipboard(pwd);
+                                                tools.vault_notice = Some(format!("Copied password for '{}'.", p.name));
                                             }
                                             if ui.button(if is_revealed { "Hide" } else { "Reveal" }).clicked() {
                                                 if is_revealed {
@@ -1258,9 +1250,7 @@ fn text_edit_with_menu(
                 .clicked()
             {
                 if let Some((a, b)) = selection {
-                    if let Ok(mut cb) = arboard::Clipboard::new() {
-                        let _ = cb.set_text(text[a..b].to_string());
-                    }
+                    crate::ui::terminal::copy_text_to_clipboard(&text[a..b]);
                     let mut t = text.clone();
                     t.replace_range(a..b, "");
                     new_text = Some((t, a));
@@ -1273,39 +1263,35 @@ fn text_edit_with_menu(
                 .clicked()
             {
                 if let Some((a, b)) = selection {
-                    if let Ok(mut cb) = arboard::Clipboard::new() {
-                        let _ = cb.set_text(text[a..b].to_string());
-                    }
+                    crate::ui::terminal::copy_text_to_clipboard(&text[a..b]);
                 }
                 ui.close_menu();
             }
         }
 
         if ui.button("Paste").clicked() {
-            if let Ok(mut cb) = arboard::Clipboard::new() {
-                if let Ok(pasted) = cb.get_text() {
-                    // A single-line field must not gain newlines.
-                    let pasted = if multiline {
-                        pasted
-                    } else {
-                        pasted.replace(['\n', '\r'], " ")
-                    };
-                    let mut t = text.clone();
-                    match selection {
-                        Some((a, b)) if a != b => {
-                            t.replace_range(a..b, &pasted);
-                            new_text = Some((t, a + pasted.len()));
+            if let Some(pasted) = crate::ui::terminal::get_clipboard_string() {
+                // A single-line field must not gain newlines.
+                let pasted = if multiline {
+                    pasted
+                } else {
+                    pasted.replace(['\n', '\r'], " ")
+                };
+                let mut t = text.clone();
+                match selection {
+                    Some((a, b)) if a != b => {
+                        t.replace_range(a..b, &pasted);
+                        new_text = Some((t, a + pasted.len()));
+                    }
+                    _ => {
+                        // Clamping with `min` alone could land inside a
+                        // multi-byte character and panic on insert.
+                        let mut at = caret.min(t.len());
+                        while at > 0 && !t.is_char_boundary(at) {
+                            at -= 1;
                         }
-                        _ => {
-                            // Clamping with `min` alone could land inside a
-                            // multi-byte character and panic on insert.
-                            let mut at = caret.min(t.len());
-                            while at > 0 && !t.is_char_boundary(at) {
-                                at -= 1;
-                            }
-                            t.insert_str(at, &pasted);
-                            new_text = Some((t, at + pasted.len()));
-                        }
+                        t.insert_str(at, &pasted);
+                        new_text = Some((t, at + pasted.len()));
                     }
                 }
             }
@@ -1488,11 +1474,9 @@ fn render_note_vault(
                                     ui.close_menu();
                                 }
                                 if ui.button("Copy body").clicked() {
-                                    if let Ok(mut cb) = arboard::Clipboard::new() {
-                                        let _ = cb.set_text(note.body.clone());
-                                        tools.note_notice =
-                                            Some(format!("Copied '{}' to the clipboard.", note.title));
-                                    }
+                                    crate::ui::terminal::copy_text_to_clipboard(&note.body);
+                                    tools.note_notice =
+                                        Some(format!("Copied '{}' to the clipboard.", note.title));
                                     ui.close_menu();
                                 }
                                 ui.separator();
@@ -2096,9 +2080,7 @@ pub fn render_sql_client(
                     resp.context_menu(|ui| {
                         ui.set_min_width(160.0_f32);
                         if ui.button("Copy query").clicked() {
-                            if let Ok(mut cb) = arboard::Clipboard::new() {
-                                let _ = cb.set_text(tab.sql.clone());
-                            }
+                            crate::ui::terminal::copy_text_to_clipboard(&tab.sql);
                             ui.close_menu();
                         }
                         if ui.button("Edit query...").clicked() {
@@ -2287,9 +2269,7 @@ pub fn render_sql_client(
                     out.push('\n');
                     out.push_str(&row.join("\t"));
                 }
-                if let Ok(mut cb) = arboard::Clipboard::new() {
-                    let _ = cb.set_text(out);
-                }
+                crate::ui::terminal::copy_text_to_clipboard(&out);
             }
         }
     }
@@ -2429,9 +2409,7 @@ fn render_tool_output_box(
                 .add(egui::Button::new(RichText::new("Copy Output").size(11.0_f32).color(text_primary)).fill(btn_neutral_bg))
                 .clicked()
             {
-                if let Ok(mut cb) = arboard::Clipboard::new() {
-                    let _ = cb.set_text(lines.join("\n"));
-                }
+                crate::ui::terminal::copy_text_to_clipboard(&lines.join("\n"));
             }
         });
     });

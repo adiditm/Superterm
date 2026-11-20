@@ -276,22 +276,147 @@ fn encode_mouse_event(
     }
 }
 
-fn copy_text_to_clipboard(text: &str) {
-    if !text.is_empty() {
-        if let Ok(mut cb) = arboard::Clipboard::new() {
-            let _ = cb.set_text(text.to_string());
+#[allow(unused_assignments)]
+pub fn copy_text_to_clipboard(text: &str) {
+    if text.is_empty() {
+        return;
+    }
+    #[allow(unused_mut, unused_variables)]
+    let mut ok = false;
+    if let Ok(mut cb) = arboard::Clipboard::new() {
+        if cb.set_text(text.to_string()).is_ok() {
+            ok = true;
+        }
+        #[cfg(target_os = "linux")]
+        {
+            use arboard::SetExtLinux;
+            let _ = cb.set().clipboard(arboard::LinuxClipboardKind::Primary).text(text.to_string());
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    if !ok {
+        use std::io::Write;
+        use std::process::{Command, Stdio};
+
+        if std::env::var_os("WAYLAND_DISPLAY").is_some() {
+            if let Ok(mut child) = Command::new("wl-copy").stdin(Stdio::piped()).spawn() {
+                if let Some(mut stdin) = child.stdin.take() {
+                    let _ = stdin.write_all(text.as_bytes());
+                }
+                let _ = child.wait();
+            }
+        } else if let Ok(mut child) = Command::new("xclip")
+            .args(["-selection", "clipboard"])
+            .stdin(Stdio::piped())
+            .spawn()
+        {
+            if let Some(mut stdin) = child.stdin.take() {
+                let _ = stdin.write_all(text.as_bytes());
+            }
+            let _ = child.wait();
         }
     }
 }
 
-fn read_clipboard_for_paste() -> Option<Vec<u8>> {
+pub fn get_clipboard_string() -> Option<String> {
+    // 1. Try arboard (CLIPBOARD selection)
     if let Ok(mut cb) = arboard::Clipboard::new() {
         if let Ok(text) = cb.get_text() {
-            let normalized = text.replace("\r\n", "\r").replace('\n', "\r");
-            return Some(normalized.into_bytes());
+            if !text.is_empty() {
+                return Some(text);
+            }
+        }
+
+        // On Linux: if CLIPBOARD is empty, try PRIMARY selection (e.g. mouse selection from terminal)
+        #[cfg(target_os = "linux")]
+        {
+            use arboard::GetExtLinux;
+            if let Ok(text) = cb.get().clipboard(arboard::LinuxClipboardKind::Primary).text() {
+                if !text.is_empty() {
+                    return Some(text);
+                }
+            }
         }
     }
+
+    // 2. On Linux: fallback to standard command line clipboard utilities (wl-paste / xclip / xsel)
+    #[cfg(target_os = "linux")]
+    {
+        if let Some(text) = linux_cli_clipboard_paste() {
+            if !text.is_empty() {
+                return Some(text);
+            }
+        }
+    }
+
     None
+}
+
+#[cfg(target_os = "linux")]
+fn linux_cli_clipboard_paste() -> Option<String> {
+    use std::process::Command;
+
+    // Check Wayland first if WAYLAND_DISPLAY is set
+    if std::env::var_os("WAYLAND_DISPLAY").is_some() {
+        if let Ok(out) = Command::new("wl-paste").arg("--no-newline").output() {
+            if out.status.success() && !out.stdout.is_empty() {
+                if let Ok(s) = String::from_utf8(out.stdout) {
+                    return Some(s);
+                }
+            }
+        }
+        if let Ok(out) = Command::new("wl-paste").args(["--primary", "--no-newline"]).output() {
+            if out.status.success() && !out.stdout.is_empty() {
+                if let Ok(s) = String::from_utf8(out.stdout) {
+                    return Some(s);
+                }
+            }
+        }
+    }
+
+    // Try xclip (CLIPBOARD)
+    if let Ok(out) = Command::new("xclip").args(["-selection", "clipboard", "-out"]).output() {
+        if out.status.success() && !out.stdout.is_empty() {
+            if let Ok(s) = String::from_utf8(out.stdout) {
+                return Some(s);
+            }
+        }
+    }
+    // Try xclip (PRIMARY)
+    if let Ok(out) = Command::new("xclip").args(["-selection", "primary", "-out"]).output() {
+        if out.status.success() && !out.stdout.is_empty() {
+            if let Ok(s) = String::from_utf8(out.stdout) {
+                return Some(s);
+            }
+        }
+    }
+
+    // Try xsel (CLIPBOARD)
+    if let Ok(out) = Command::new("xsel").args(["--clipboard", "--output"]).output() {
+        if out.status.success() && !out.stdout.is_empty() {
+            if let Ok(s) = String::from_utf8(out.stdout) {
+                return Some(s);
+            }
+        }
+    }
+    // Try xsel (PRIMARY)
+    if let Ok(out) = Command::new("xsel").args(["--primary", "--output"]).output() {
+        if out.status.success() && !out.stdout.is_empty() {
+            if let Ok(s) = String::from_utf8(out.stdout) {
+                return Some(s);
+            }
+        }
+    }
+
+    None
+}
+
+pub fn read_clipboard_for_paste() -> Option<Vec<u8>> {
+    get_clipboard_string().map(|text| {
+        let normalized = text.replace("\r\n", "\r").replace('\n', "\r");
+        normalized.into_bytes()
+    })
 }
 
 pub fn render_terminal_viewport(
@@ -523,6 +648,12 @@ pub fn render_terminal_viewport(
             }
         } else if response.clicked_by(PointerButton::Primary) {
             emu.clear_selection();
+        } else if response.clicked_by(PointerButton::Middle) {
+            if let Some(bytes) = read_clipboard_for_paste() {
+                emu.clear_selection();
+                emu.parser.screen_mut().set_scrollback(0);
+                actions.bytes_to_send.extend_from_slice(&bytes);
+            }
         }
 
         // Scrollback wheel when hovering (not dragging)
@@ -606,6 +737,13 @@ pub fn render_terminal_viewport(
                 egui::Event::Paste(text) => {
                     emu.clear_selection();
                     emu.parser.screen_mut().set_scrollback(0);
+                    let text = if !text.is_empty() {
+                        text
+                    } else if let Some(clip) = get_clipboard_string() {
+                        clip
+                    } else {
+                        text
+                    };
                     let normalized = text.replace("\r\n", "\r").replace('\n', "\r");
                     actions.bytes_to_send.extend_from_slice(normalized.as_bytes());
                 }
@@ -622,7 +760,9 @@ pub fn render_terminal_viewport(
                         continue;
                     }
 
-                    if modifiers.ctrl && modifiers.shift && key == Key::V {
+                    if (modifiers.ctrl && modifiers.shift && key == Key::V)
+                        || (modifiers.shift && key == Key::Insert)
+                    {
                         if let Some(bytes) = read_clipboard_for_paste() {
                             emu.clear_selection();
                             emu.parser.screen_mut().set_scrollback(0);

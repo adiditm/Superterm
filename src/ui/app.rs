@@ -3872,9 +3872,7 @@ impl eframe::App for SupertermNativeApp {
                             .add(egui::Button::new(RichText::new("Copy JSON").color(Color32::WHITE)).fill(Color32::from_rgb(37, 99, 235)))
                             .clicked()
                         {
-                            if let Ok(mut cb) = arboard::Clipboard::new() {
-                                let _ = cb.set_text(exp_json.clone());
-                            }
+                            crate::ui::terminal::copy_text_to_clipboard(&exp_json);
                         }
                         if ui.button("Close").clicked() {
                             keep_open = false;
