@@ -5071,7 +5071,7 @@ impl eframe::App for SupertermNativeApp {
             egui::Window::new("Sync Account & Encrypted Vault")
                 .collapsible(false)
                 .resizable(false)
-                .default_size(Vec2::new(430.0_f32, 330.0_f32))
+                .default_size(Vec2::new(520.0_f32, 340.0_f32))
                 .show(ctx, |ui| {
                     ui.heading(RichText::new("Account & Cross-Platform E2EE Sync").color(text_primary));
                     ui.label(
@@ -5085,7 +5085,7 @@ impl eframe::App for SupertermNativeApp {
                     ui.horizontal(|ui| {
                         MenuEdit::single("sync_email_input")
     .hint("you@gmail.com")
-    .width(270.0_f32)
+    .width(300.0_f32)
     .show(ui, &mut self.sync_email_input);
                         if ui
                             .add(egui::Button::new(RichText::new("Save Email").color(Color32::WHITE)).fill(Color32::from_rgb(124, 58, 237)))
@@ -5109,9 +5109,70 @@ impl eframe::App for SupertermNativeApp {
 
                     ui.label(RichText::new("Encrypted Portable Backup (.stvault):").color(text_primary).strong());
                     ui.label(RichText::new("Vault File Path (e.g. inside your Google Drive / OneDrive folder):").size(11.0_f32).color(text_secondary));
-                    MenuEdit::single("sync_file_path")
-    .width(f32::INFINITY)
-    .show(ui, &mut self.sync_file_path);
+                    ui.horizontal(|ui| {
+                        let btn_width = 205.0_f32;
+                        let edit_width = (ui.available_width() - btn_width).max(160.0_f32);
+                        MenuEdit::single("sync_file_path")
+                            .width(edit_width)
+                            .show(ui, &mut self.sync_file_path);
+
+                        if ui.button("📁 Browse Folder...").on_hover_text("Choose destination folder (keeps or appends .stvault filename)").clicked() {
+                            let mut dialog = rfd::FileDialog::new().set_title("Select Backup Folder");
+                            let current_path = std::path::Path::new(self.sync_file_path.trim());
+                            if current_path.exists() {
+                                if current_path.is_dir() {
+                                    dialog = dialog.set_directory(current_path);
+                                } else if let Some(parent) = current_path.parent() {
+                                    if parent.exists() {
+                                        dialog = dialog.set_directory(parent);
+                                    }
+                                }
+                            } else if let Some(parent) = current_path.parent() {
+                                if parent.exists() {
+                                    dialog = dialog.set_directory(parent);
+                                }
+                            }
+                            if let Some(folder) = dialog.pick_folder() {
+                                let filename = if !self.sync_file_path.trim().is_empty() {
+                                    std::path::Path::new(self.sync_file_path.trim())
+                                        .file_name()
+                                        .and_then(|f| f.to_str())
+                                        .filter(|s| s.ends_with(".stvault"))
+                                        .unwrap_or("superterm.stvault")
+                                } else {
+                                    "superterm.stvault"
+                                };
+                                self.sync_file_path = folder.join(filename).to_string_lossy().to_string();
+                            }
+                        }
+
+                        if ui.button("📄 File...").on_hover_text("Choose an existing .stvault file to import").clicked() {
+                            let mut dialog = rfd::FileDialog::new()
+                                .set_title("Select .stvault File")
+                                .add_filter("Superterm Vault (*.stvault)", &["stvault"])
+                                .add_filter("All Files (*.*)", &["*"]);
+                            let current_path = std::path::Path::new(self.sync_file_path.trim());
+                            if current_path.exists() {
+                                if current_path.is_file() {
+                                    if let Some(fname) = current_path.file_name() {
+                                        dialog = dialog.set_file_name(fname.to_string_lossy());
+                                    }
+                                    if let Some(parent) = current_path.parent() {
+                                        dialog = dialog.set_directory(parent);
+                                    }
+                                } else if current_path.is_dir() {
+                                    dialog = dialog.set_directory(current_path);
+                                }
+                            } else if let Some(parent) = current_path.parent() {
+                                if parent.exists() {
+                                    dialog = dialog.set_directory(parent);
+                                }
+                            }
+                            if let Some(file) = dialog.pick_file() {
+                                self.sync_file_path = file.to_string_lossy().to_string();
+                            }
+                        }
+                    });
 
                     ui.label(RichText::new("Master Encryption Password:").size(11.0_f32).color(text_secondary));
                     MenuEdit::single("sync_master_password")
