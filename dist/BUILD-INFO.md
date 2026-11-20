@@ -1,19 +1,23 @@
-# Superterm release binaries
+# Superterm v0.1.1 release binaries
 
-Built from commit `5cceab1` (`main`) on **2026-11-20 15:45 WIB** by the
-multi-arch CI workflow: <https://github.com/adiditm/Superterm/actions/runs/44705036264>
+Built from commit `b56275b` (`main`) on **2026-11-20 16:30 WIB** by the
+multi-arch CI workflow: <https://github.com/adiditm/Superterm/actions/runs/44711331906>
 
 Every binary was produced with `cargo build --release` (`opt-level = "z"`,
 LTO, `strip`, `panic = "abort"`) on a native runner for its platform.
 
 | Platform | Architecture | File | Size |
 |---|---|---|---|
-| Windows | x86_64 (MSVC) | `windows-x86_64/superterm.exe` | 5.3 MB |
-| Windows | ARM64 (MSVC) | `windows-arm64/superterm.exe` | 4.9 MB |
-| Linux | x86_64 (glibc) | `linux-x86_64/superterm` | 8.4 MB |
-| Linux | ARM64 (glibc) | `linux-arm64/superterm` | 7.2 MB |
-| macOS | Intel x86_64 | `macos-x86_64/Superterm.app` | 5.3 MB |
-| macOS | Apple Silicon arm64 | `macos-arm64/Superterm.app` | 4.6 MB |
+| Windows | x86_64 (MSVC) | `windows-x86_64/superterm.exe` | 5.1 MB |
+| Windows | ARM64 (MSVC) | `windows-arm64/superterm.exe` | 4.6 MB |
+| Linux | x86_64 (glibc) | `linux-x86_64/superterm` | 8.9 MB |
+| Linux | ARM64 (glibc) | `linux-arm64/superterm` | 7.5 MB |
+| macOS | Intel x86_64 | `macos-x86_64/Superterm.app` | 5.1 MB |
+| macOS | Apple Silicon arm64 | `macos-arm64/Superterm.app` | 4.4 MB |
+
+Changes since v0.1.0: external clipboard copy/paste on Linux (Wayland and
+X11), native Browse Folder / File dialogs for the vault path, and modal /
+input width locking that stops the window from growing without bound.
 
 Verify the downloads with:
 
@@ -34,5 +38,4 @@ shasum -a 256 -c SHA256SUMS.txt
   xattr -dr com.apple.quarantine Superterm.app
   ```
 
-  Universal binary option: copy the matching `Superterm.app` for the CPU you
-  are on — the x86_64 bundle also runs on Apple Silicon through Rosetta 2.
+  The x86_64 bundle also runs on Apple Silicon through Rosetta 2.
