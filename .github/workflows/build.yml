@@ -35,9 +35,10 @@ jobs:
       - run: cargo build --release --target ${{ matrix.target }}
       - name: Package macOS .app bundle
         run: |
+          VERSION=$(grep '^version =' Cargo.toml | head -n1 | cut -d'"' -f2)
           mkdir -p Superterm.app/Contents/MacOS
           cp target/${{ matrix.target }}/release/superterm Superterm.app/Contents/MacOS/Superterm
-          cat << 'EOF' > Superterm.app/Contents/Info.plist
+          cat << EOF > Superterm.app/Contents/Info.plist
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
@@ -45,13 +46,18 @@ jobs:
             <key>CFBundleExecutable</key><string>Superterm</string>
             <key>CFBundleIdentifier</key><string>com.superterm.app</string>
             <key>CFBundleName</key><string>Superterm</string>
-            <key>CFBundleVersion</key><string>0.1.0</string>
+            <key>CFBundleShortVersionString</key><string>${VERSION}</string>
+            <key>CFBundleVersion</key><string>${VERSION}</string>
             <key>CFBundlePackageType</key><string>APPL</string>
             <key>NSHighResolutionCapable</key><true/>
           </dict>
           </plist>
           EOF
-          zip -r Superterm-macOS-${{ matrix.target }}.zip Superterm.app
+          chmod 755 Superterm.app Superterm.app/Contents Superterm.app/Contents/MacOS Superterm.app/Contents/MacOS/Superterm
+          chmod 644 Superterm.app/Contents/Info.plist
+          codesign --force --deep --sign - Superterm.app
+          codesign --verify --deep --strict --verbose=2 Superterm.app
+          ditto -c -k --keepParent Superterm.app Superterm-macOS-${{ matrix.target }}.zip
       - uses: actions/upload-artifact@v4
         with:
           name: Superterm-macOS-${{ matrix.target }}
