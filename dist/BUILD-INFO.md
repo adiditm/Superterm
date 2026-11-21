@@ -1,7 +1,7 @@
 # Superterm v0.1.2 release binaries
 
-Built from commit `9b5b75c` (`main`) on **2026-11-20 17:05 WIB** by the
-multi-arch CI workflow: <https://github.com/adiditm/Superterm/actions/runs/44716120053>
+Built from commit `4457198` (`main`) on **2026-11-21 10:01 WIB** by the
+multi-arch CI workflow: <https://github.com/adiditm/Superterm/actions/runs/44858624348>
 
 Every binary was produced with `cargo build --release` (`opt-level = "z"`,
 LTO, `strip`, `panic = "abort"`) on a native runner for its platform.
